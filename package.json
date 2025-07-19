@@ -1,0 +1,42 @@
+{
+  "name": "mcbuddy-server",
+  "version": "1.0.0",
+  "description": "🛠️⚡ Бэкенд для AI-ассистента MCBuddy — быстрый сервер на Bun с интеграцией OpenRouter и web search, обработкой запросов из Minecraft и Telegram. 🌟",
+  "main": "src/index.ts",
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "dev": "bun run --watch src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "test": "bun test",
+    "worker": "bun run src/worker.ts"
+  },
+  "keywords": [
+    "minecraft",
+    "ai",
+    "assistant",
+    "openrouter",
+    "bun"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/amqplib": "^0.10.5",
+    "@types/bun": "latest",
+    "@types/ioredis": "^5.0.0",
+    "@types/uuid": "^10.0.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.4",
+    "bullmq": "^5.56.4",
+    "fp-ts": "^2.16.10",
+    "ioredis": "^5.3.2",
+    "mongoose": "^8.16.3",
+    "retry-ts": "^0.1.4",
+    "tslog": "^4.9.3",
+    "uuid": "^10.0.0"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  }
+}
