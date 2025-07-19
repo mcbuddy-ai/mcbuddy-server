@@ -11,24 +11,28 @@ import { ask } from "./ask.service";
 import { AskRequest, AskResponse, Message } from "./ask.types";
 import { MAX_MESSAGES, CHAT_TTL_SECONDS } from "./ask.env";
 
-export const handleAsk = (req: Request) =>
-  pipe(
+export const handleAsk = (req: Request) => {
+  const token = req.headers.get('X-OpenRouter-Token') || undefined;
+  
+  return pipe(
     req,
     TE.fromEitherK(check),
     TE.chain(parse),
     TE.chainEitherK(validate),
     TE.bindTo('body'),
+    TE.bind('token', () => TE.right(token)),
     TE.chainFirst(saveUserMessage),
     TE.bind('aiResult', getAiResponse),
     TE.chainFirst(saveAssistantMessage),
     TE.map(createSuccessResponse),
     TE.getOrElse(e => T.of(error(e)))
   )();
+}
 
 const getUserId = (body: AskRequest): string => body.user_id || "anonymous";
 const getPlatform = (body: AskRequest): string => body.platform || 'unknown';
 const saveUserMessage = ({ body }: { body: AskRequest }) => add(getUserId(body), 'user', body.question.trim());
-const getAiResponse = ({ body }: { body: AskRequest }) => ask(getUserId(body), body.question.trim(), getPlatform(body));
+const getAiResponse = ({ body, token }: { body: AskRequest, token?: string }) => ask(getUserId(body), body.question.trim(), getPlatform(body), token);
 const saveAssistantMessage = ({ body, aiResult }: { body: AskRequest, aiResult: AskResponse }) => add(getUserId(body), 'assistant', aiResult.response);
 const createSuccessResponse = ({ body, aiResult }: { body: AskRequest, aiResult: AskResponse }) => success(body)(aiResult);
 

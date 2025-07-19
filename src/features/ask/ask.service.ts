@@ -10,7 +10,7 @@ import { AskResponse, Message } from './ask.types';
 import { redis } from 'bun';
 import { SYSTEM_MESSAGE_WITH_CONTEXT } from './ask.env';
 
-export const ask = (userId: string, question: string, platform: string = 'unknown'): TaskEither<ApiError, AskResponse> => {
+export const ask = (userId: string, question: string, platform: string = 'unknown', token?: string): TaskEither<ApiError, AskResponse> => {
   logger.info(`Processing AI completion for user: ${userId}, platform: ${platform}`);
   return pipe(
     fromEither(check(question)),
@@ -19,7 +19,7 @@ export const ask = (userId: string, question: string, platform: string = 'unknow
       retry(
         `AI completion for user ${userId}`,
         policies.standard,
-        request(messages, platform)
+        request(messages, platform, token)
       )
     ),
     map(format)
