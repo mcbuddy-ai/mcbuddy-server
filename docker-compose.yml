@@ -1,0 +1,67 @@
+services:
+  mongo:
+    image: mongo:latest
+    container_name: mcbuddy_mongo
+    restart: unless-stopped
+    networks: [ default ]
+    env_file: .env
+    volumes:
+      - ${HOME}/data/mcbuddy/mongo:/data/db
+
+  redis:
+    image: redis:7-alpine
+    container_name: mcbuddy_redis
+    restart: unless-stopped
+    networks: [ default ]
+    env_file: .env
+    user: "0"
+    command: redis-server --appendonly yes
+    volumes:
+      - ${HOME}/data/mcbuddy/redis:/data
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcbuddy_server
+    restart: unless-stopped
+    networks: [default]
+    env_file: .env
+    ports:
+      - "3000:3000"
+    depends_on: [mongo, redis]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: mcbuddy_caddy
+    restart: unless-stopped
+    networks: [default]
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./configurations/caddy/Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [server]
+
+volumes:
+  caddy_data:
+    driver: local
+  caddy_config:
+    driver: local
+
+networks:
+  default:
+    driver: bridge 
