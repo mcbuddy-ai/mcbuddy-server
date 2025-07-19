@@ -8,11 +8,11 @@ import { API_ERRORS, apierror } from '../../../shared/types/errors';
 import { API_NAME, API_URL, OPENROUTER_API_CTX, OPENROUTER_API_KEY, OPENROUTER_API_MODEL, OPENROUTER_BASE_URL } from './openrouter.env';
 import { AIMessage } from './openrouter.types';
 
-export const request = (messages: AIMessage[], platform: string) => {
+export const request = (messages: AIMessage[], platform: string, token?: string) => {
   logger.info(`Making OpenRouter request for platform: ${platform}`);
   
   return pipe(
-    perform(messages, platform),
+    perform(messages, platform, token),
     chain(response => fromEither(status(response))),
     chain(parse),
     chain(data => fromEither(validate(data)))
@@ -40,15 +40,15 @@ const validate = (data: OpenRouterResponse) => {
   return right(data.choices[0].message.content);
 };
 
-const perform = (messages: AIMessage[], platform: string) =>
-  retry(
+const perform = (messages: AIMessage[], platform: string, token?: string) => {
+  return retry(
     `OpenRouter request for platform ${platform}`,
     policies.critical,
     tryCatch(
       () => fetch(`${OPENROUTER_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+          'Authorization': `Bearer ${token || OPENROUTER_API_KEY}`,
           'HTTP-Referer': API_URL,
           'X-Title': API_NAME + "/" + platform,
           'Content-Type': 'application/json',
@@ -64,3 +64,4 @@ const perform = (messages: AIMessage[], platform: string) =>
       (error) => apierror(API_ERRORS.NETWORK_ERROR, String(error))
     )
   );
+};
