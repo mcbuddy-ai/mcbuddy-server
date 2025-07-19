@@ -1,0 +1,389 @@
+{
+  "info": {
+    "name": "MCBuddy API",
+    "description": "🤖 Коллекция эндпоинтов для MCBuddy Server - интеллектуального российского Minecraft-ассистента",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3000",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/api/health",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "health"
+          ]
+        },
+        "description": "Проверка состояния сервера MCBuddy. Возвращает информацию о статусе, времени работы, использовании памяти и версии."
+      },
+      "response": [
+        {
+          "name": "Health Check Success",
+          "originalRequest": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"status\": \"ok\",\n  \"timestamp\": \"2024-12-19T12:00:00.000Z\",\n  \"uptime\": 1234.56,\n  \"memory\": {\n    \"rss\": 45678912,\n    \"heapTotal\": 25165824,\n    \"heapUsed\": 18874368,\n    \"external\": 1234567\n  },\n  \"version\": \"1.0.0\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Ask AI Assistant",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"Как крафтить алмазный меч в Minecraft?\",\n  \"platform\": \"minecraft\",\n  \"user_id\": \"test_user_123\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/ask",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "ask"
+          ]
+        },
+        "description": "Отправка вопроса AI-ассистенту MCBuddy. Поддерживаются платформы: minecraft, telegram. Максимальная длина вопроса: 1000 символов."
+      },
+      "response": [
+        {
+          "name": "Ask Success",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Как крафтить алмазный меч в Minecraft?\",\n  \"platform\": \"minecraft\",\n  \"user_id\": \"test_user_123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/ask",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ask"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"answer\": \"Для крафта алмазного меча вам понадобится: 2 алмаза и 1 палка. Расположите их в верстаке следующим образом: алмаз в центре верхнего ряда, алмаз в центре среднего ряда, палка в центре нижнего ряда.\",\n  \"status\": \"success\",\n  \"timestamp\": \"2024-12-19T12:00:00.000Z\",\n  \"processing_time_ms\": 1500,\n  \"platform\": \"minecraft\",\n  \"user_id\": \"test_user_123\"\n}"
+        },
+        {
+          "name": "Ask Error - Invalid Question",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"\",\n  \"platform\": \"minecraft\",\n  \"user_id\": \"test_user_123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/ask",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ask"
+              ]
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"error\": \"Параметр 'question' обязателен и должен быть строкой\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Ask AI for Commands (AskX)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"action\": \"дай мне алмазный меч\",\n  \"platform\": \"minecraft\",\n  \"user_id\": \"test_user_123\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/askx",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "askx"
+          ]
+        },
+        "description": "Получение команд от AI для выполнения действий в Minecraft. Поддерживается только платформа minecraft. Максимальная длина описания действия: 500 символов."
+      },
+      "response": [
+        {
+          "name": "AskX Success",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"дай мне алмазный меч\",\n  \"platform\": \"minecraft\",\n  \"user_id\": \"test_user_123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/askx",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "askx"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"isSequence\": false,\n  \"commands\": [\"/give @s diamond_sword 1\"],\n  \"status\": \"success\",\n  \"timestamp\": \"2024-12-19T12:00:00.000Z\",\n  \"processing_time_ms\": 800,\n  \"platform\": \"minecraft\",\n  \"user_id\": \"test_user_123\"\n}"
+        },
+        {
+          "name": "AskX Error - Invalid Platform",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"дай мне алмазный меч\",\n  \"platform\": \"telegram\",\n  \"user_id\": \"test_user_123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/askx",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "askx"
+              ]
+            }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"error\": \"Платформа не поддерживается\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Ask AI (Telegram Platform)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"Расскажи про биомы в Minecraft\",\n  \"platform\": \"telegram\",\n  \"user_id\": \"telegram_user_456\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/ask",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "ask"
+          ]
+        },
+        "description": "Пример запроса от Telegram-бота к AI-ассистенту"
+      },
+      "response": [
+        {
+          "name": "Ask Success (Telegram)",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Расскажи про биомы в Minecraft\",\n  \"platform\": \"telegram\",\n  \"user_id\": \"telegram_user_456\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/ask",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ask"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"answer\": \"В Minecraft существует множество биомов: леса, пустыни, горы, океаны, болота и многие другие. Каждый биом имеет уникальные особенности, мобов и ресурсы.\",\n  \"status\": \"success\",\n  \"timestamp\": \"2024-12-19T12:00:00.000Z\",\n  \"processing_time_ms\": 1200,\n  \"platform\": \"telegram\",\n  \"user_id\": \"telegram_user_456\"\n}"
+        }
+      ]
+    },
+    {
+      "name": "Ask AI (Anonymous User)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"question\": \"Что такое редстоун в Minecraft?\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/ask",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "ask"
+          ]
+        },
+        "description": "Минимальный запрос без указания платформы и user_id (будет использован anonymous)"
+      },
+      "response": [
+        {
+          "name": "Ask Success (Anonymous)",
+          "originalRequest": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"question\": \"Что такое редстоун в Minecraft?\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/ask",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "ask"
+              ]
+            }
+          },
+          "status": "OK",
+          "code": 200,
+          "header": [
+            {
+              "key": "Content-Type",
+              "value": "application/json"
+            }
+          ],
+          "body": "{\n  \"answer\": \"Редстоун - это материал в Minecraft, который используется для создания различных механизмов и электрических схем. Он работает как электричество в игре.\",\n  \"status\": \"success\",\n  \"timestamp\": \"2024-12-19T12:00:00.000Z\",\n  \"processing_time_ms\": 900,\n  \"platform\": \"unknown\",\n  \"user_id\": \"anonymous\"\n}"
+        }
+      ]
+    }
+  ]
+} 
