@@ -1,27 +1,32 @@
 import * as E from 'fp-ts/Either';
 import { flow, pipe } from 'fp-ts/function';
-import { of } from 'fp-ts/Task';
+import * as T from 'fp-ts/Task';
+import * as TE from 'fp-ts/TaskEither';
 import { bind, bindTo, chain, chainEitherK, fromEitherK, getOrElse, map, tryCatch } from 'fp-ts/TaskEither';
 import { logger } from "../../shared/logging/logger";
 import { ApiError } from "../../shared/types/errors";
 import { askx } from "./askx.service";
 import { AskXRequest, AskXResponse } from "./askx.types";
 
-export const handleAskX = (req: Request) =>
-  pipe(
+export const handleAskX = (req: Request) => {
+  const token = req.headers.get('X-OpenRouter-Token') || undefined;
+  
+  return pipe(
     req,
     fromEitherK(check),
     chain(parse),
     chainEitherK(validate),
     bindTo('body'),
+    bind('token', () => TE.right(token)),
     bind('askxResult', getAskXResponse),
     map(createSuccessResponse),
-    getOrElse(e => of(error(e)))
+    getOrElse(e => T.of(error(e)))
   )();
+}
 
 const getPlatform = (body: AskXRequest): string => body.platform || 'minecraft';
 const getUserId = (body: AskXRequest): string => body.user_id || 'anonymous';
-const getAskXResponse = ({ body }: { body: AskXRequest }) => askx(body.action.trim(), getPlatform(body));
+const getAskXResponse = ({ body, token }: { body: AskXRequest, token?: string }) => askx(body.action.trim(), getPlatform(body), token);
 const createSuccessResponse = ({ body, askxResult }: { body: AskXRequest, askxResult: AskXResponse }) => success(body)(askxResult);
 
 const check = (req: Request): E.Either<ApiError, Request> =>

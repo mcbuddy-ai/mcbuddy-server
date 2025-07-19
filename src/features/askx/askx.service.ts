@@ -9,7 +9,7 @@ import { API_ERRORS, ApiError, apierror } from "../../shared/types/errors";
 import { AskXResponse } from "./askx.types";
 import { ASKX_SYSTEM_MESSAGE } from './askx.env';
 
-export const askx = (action: string, platform: string = 'minecraft'): TaskEither<ApiError, AskXResponse> => {
+export const askx = (action: string, platform: string = 'minecraft', token?: string): TaskEither<ApiError, AskXResponse> => {
   logger.info(`Processing askx request: ${action} for platform: ${platform}`);
   return pipe(
     fromEither(validateIn(action)),
@@ -17,7 +17,7 @@ export const askx = (action: string, platform: string = 'minecraft'): TaskEither
       retry(
         `AskX completion for action: ${action}`,
         policies.standard,
-        request(messages(validAction), platform)
+        request(messages(validAction), platform, token)
       )
     ),
     chain(response => fromEither(process(response)))
