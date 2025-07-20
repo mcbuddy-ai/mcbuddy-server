@@ -6,7 +6,7 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun run --watch src/index.ts",
-    "build": "bun build src/index.ts --outdir dist --target bun",
+    "build": "bun build src/application/entrypoint.ts --outdir dist/application --target bun",
     "test": "bun test"
   },
   "keywords": [
