@@ -8,13 +8,13 @@ import { logger } from '../../shared/logging/logger';
 import { API_ERRORS, ApiError, apierror } from '../../shared/types/errors';
 import { AskResponse, Message } from './ask.types';
 import { redis } from 'bun';
-import { SYSTEM_MESSAGE_WITH_CONTEXT } from './ask.env';
+import { SYSTEM_MESSAGE_WITH_CONTEXT, SYSTEM_MESSAGE_WITH_CONTEXT_TG } from './ask.env';
 
 export const ask = (userId: string, question: string, platform: string = 'unknown', token?: string): TaskEither<ApiError, AskResponse> => {
   logger.info(`Processing AI completion for user: ${userId}, platform: ${platform}`);
   return pipe(
     fromEither(check(question)),
-    chain(question => fetchAndBuild(userId, question)),
+    chain(question => fetchAndBuild(userId, question, platform)),
     chain(messages =>
       retry(
         `AI completion for user ${userId}`,
@@ -74,24 +74,24 @@ const history = (redisMessages: string[]) => {
   return parseMsgs(redisMessages);
 };
 
-const systemMsg = (): AIMessage => ({
+const systemMsg = (platform: string): AIMessage => ({
   role: 'system',
-  content: SYSTEM_MESSAGE_WITH_CONTEXT
+  content: platform === 'telegram' ? SYSTEM_MESSAGE_WITH_CONTEXT_TG : SYSTEM_MESSAGE_WITH_CONTEXT
 });
 
-const msgs = (chatHistory: Message[], question: string) => {
-  const systemMessage = systemMsg();
+const msgs = (chatHistory: Message[], question: string, platform: string) => {
+  const systemMessage = systemMsg(platform);
   const historyMessages = chatHistory.map(toAIMsg);
   const userMessage: AIMessage = { role: 'user', content: question };
   return [systemMessage, ...historyMessages, userMessage];
 };
 
-const fetchAndBuild = (userId: string, question: string) => {
+const fetchAndBuild = (userId: string, question: string, platform: string) => {
   logger.info(`Building message history for user: ${userId}`);
   return pipe(
     fetch(userId),
     map(history),
-    map((history: Message[]) => msgs(history, question)),
+    map((history: Message[]) => msgs(history, question, platform)),
     map((messages: AIMessage[]) => limitCtx(messages, 25))
   );
 };
