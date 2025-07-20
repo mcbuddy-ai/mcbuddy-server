@@ -14,26 +14,26 @@ export class ContextLogger<T extends ILogObj = ILogObj> {
   }
 
   info(message: string, ...args: any[]) {
-    this.baseLogger.info(message, { ...this.context, ...args });
+    console.log("[INFO] " + message, ...args)
   }
 
   warn(message: string, ...args: any[]) {
-    this.baseLogger.warn(message, { ...this.context, ...args });
+    console.log("[WARN] " + message, ...args)
   }
 
   error(message: string, ...args: any[]) {
-    this.baseLogger.error(message, { ...this.context, ...args });
+    console.log("[ERROR] " + message, ...args)
   }
 
   debug(message: string, ...args: any[]) {
-    this.baseLogger.debug(message, { ...this.context, ...args });
+    console.log("[DEBUG] " + message, ...args)
   }
 
   fatal(message: string, ...args: any[]) {
-    this.baseLogger.fatal(message, { ...this.context, ...args });
+    console.log("[FATAL] " + message, ...args)
   }
 
   trace(message: string, ...args: any[]) {
-    this.baseLogger.trace(message, { ...this.context, ...args });
+    console.log("[TRACE] " + message, ...args)
   }
 }
