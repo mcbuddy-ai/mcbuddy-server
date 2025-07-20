@@ -3,7 +3,10 @@ import { logger } from '../../shared/logging/logger';
 import { MONGODB_DATABASE, MONGODB_URI } from './mongodb.env';
 
 export const connect = async () => {
-  const connectionString = `${MONGODB_URI}/${MONGODB_DATABASE}`;
+  let connectionString = MONGODB_URI;
+  const url = new URL(MONGODB_URI);
+  url.pathname = `/${MONGODB_DATABASE}`;
+  connectionString = url.toString();
 
   logger.info(`Connecting to MongoDB`);
 
