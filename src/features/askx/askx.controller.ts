@@ -4,8 +4,8 @@ import * as T from 'fp-ts/Task';
 import * as TE from 'fp-ts/TaskEither';
 import { bind, bindTo, chain, chainEitherK, fromEitherK, getOrElse, map, tryCatch } from 'fp-ts/TaskEither';
 import { logger } from "../../shared/logging/logger";
-import { ApiError } from "../../shared/types/errors";
-import { askx } from "./askx.service";
+import { API_ERRORS, apierror, ApiError } from "../../shared/types/errors";
+import { addJob, waitForJobResult, AskXJobData } from "../../infrastructure/queues";
 import { AskXRequest, AskXResponse } from "./askx.types";
 
 export const handleAskX = (req: Request) => {
@@ -18,7 +18,7 @@ export const handleAskX = (req: Request) => {
     chainEitherK(validate),
     bindTo('body'),
     bind('token', () => TE.right(token)),
-    bind('askxResult', getAskXResponse),
+    bind('askxResult', processWithQueue),
     map(createSuccessResponse),
     getOrElse(e => T.of(error(e)))
   )();
@@ -26,7 +26,44 @@ export const handleAskX = (req: Request) => {
 
 const getPlatform = (body: AskXRequest): string => body.platform || 'minecraft';
 const getUserId = (body: AskXRequest): string => body.user_id || 'anonymous';
-const getAskXResponse = ({ body, token }: { body: AskXRequest, token?: string }) => askx(body.action.trim(), getPlatform(body), token);
+
+const processWithQueue = ({ body, token }: { body: AskXRequest, token?: string }): TE.TaskEither<ApiError, AskXResponse> => {
+  const jobData: AskXJobData = {
+    type: 'askx',
+    action: body.action.trim(),
+    platform: getPlatform(body),
+    token,
+    jobId: crypto.randomUUID(),
+  };
+
+  return TE.tryCatch(
+    async () => {
+      logger.info(`Adding ASKX job to queue for platform: ${jobData.platform}`);
+      await addJob(jobData);
+      
+      const result = await waitForJobResult(jobData.jobId, 300000);
+      
+      if (!result.success) {
+        const apiError: ApiError = result.error || { 
+          message: 'Unknown queue error', 
+          code: 'QUEUE_ERROR', 
+          statusCode: 500 
+        };
+        throw apiError;
+      }
+      
+      return result.data as AskXResponse;
+    },
+    (error): ApiError => {
+      if (error && typeof error === 'object' && 'code' in error) {
+        return error as ApiError;
+      }
+      logger.error('Queue processing error:', error);
+      return apierror(API_ERRORS.PROCESSING_ERROR, String(error));
+    }
+  );
+};
+
 const createSuccessResponse = ({ body, askxResult }: { body: AskXRequest, askxResult: AskXResponse }) => success(body)(askxResult);
 
 const check = (req: Request): E.Either<ApiError, Request> =>

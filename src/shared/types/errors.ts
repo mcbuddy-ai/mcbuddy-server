@@ -17,7 +17,9 @@ export const API_ERRORS = {
   EMPTY_QUESTION: { code: 'EMPTY_QUESTION', message: 'Question is empty', statusCode: 400 },
   QUESTION_TOO_LONG: { code: 'QUESTION_TOO_LONG', message: 'Question too long (max 1000 characters)', statusCode: 400 },
   NO_AI_RESPONSE: { code: 'NO_AI_RESPONSE', message: 'No response from AI model', statusCode: 503 },
-  BAD_REQUEST: { code: 'BAD_REQUEST', message: 'Invalid request body', statusCode: 400 }
+  BAD_REQUEST: { code: 'BAD_REQUEST', message: 'Invalid request body', statusCode: 400 },
+  QUEUE_ERROR: { code: 'QUEUE_ERROR', message: 'Queue error', statusCode: 500 },
+  PROCESSING_ERROR: { code: 'PROCESSING_ERROR', message: 'Processing error', statusCode: 500 }
 } as const;
 
 export const apierror = (baseError: typeof API_ERRORS[keyof typeof API_ERRORS], details?: string): ApiError => ({
