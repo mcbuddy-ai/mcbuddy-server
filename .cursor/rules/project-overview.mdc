@@ -1,0 +1,66 @@
+---
+alwaysApply: true
+---
+
+# MCBuddy Server - Project Overview 🛠️
+
+## Project Information
+- **Full Name**: MCBuddy Server
+- **Short Name**: mcbuddy-server
+- **Description**: Бэкенд для AI-ассистента MCBuddy — быстрый сервер на Bun с интеграцией OpenRouter и web search, обработкой запросов из Minecraft и Telegram 🌟
+
+## Technical Specifications
+- **TypeScript Version**: 5.0+
+- **Runtime**: Bun 1.0+
+- **Main File**: src/index.ts
+- **Architecture**: Modular TypeScript application with feature-based structure and REST API
+
+## Technology Stack
+- **Language**: TypeScript
+- **Runtime**: Bun.js
+- **Database**: MongoDB (Mongoose ODM)
+- **Cache**: Redis (ioredis)
+- **Queue**: BullMQ (job queue system)
+- **HTTP**: Bun built-in server
+- **Proxy**: Caddy (reverse proxy and SSL)
+- **Logging**: tslog (structured logging)
+- **Functional Programming**: fp-ts
+- **Containerization**: Docker, docker-compose
+
+## Core Features
+- **REST API** — endpoints для обработки запросов от Telegram бота и Minecraft плагина
+- **AI Integration** — интеграция с OpenRouter для доступа к различным AI моделям
+- **Web Search** — поиск информации в интернете для обогащения контекста
+- **Usage Tracking** — отслеживание использования API и метрики пользователей
+- **Rate Limiting** — защита от злоупотреблений и спама
+- **Queue System** — фоновая обработка задач через BullMQ
+
+## AI Integrations
+- **OpenRouter** — Aggregator of various AI models (GPT, Claude, etc.)
+- **Custom Token Support** — возможность использования собственного токена через X-OpenRouter-Token
+
+## Core Modules
+- **application**: Application initialization and server setup
+- **features/ask**: Question processing with AI integration
+- **features/askx**: Command execution through AI
+- **features/health**: Health check endpoints
+- **entities**: Data models (User, Usage)
+- **infrastructure**: External integrations (Database, Providers, Queues)
+- **shared**: Common utilities and middleware
+
+## Key Entry Points
+- **Main File**: [src/index.ts](mdc:src/index.ts)
+- **Entry Point**: [src/application/entrypoint.ts](mdc:src/application/entrypoint.ts)
+- **Ask Controller**: [src/features/ask/ask.controller.ts](mdc:src/features/ask/ask.controller.ts)
+- **AskX Controller**: [src/features/askx/askx.controller.ts](mdc:src/features/askx/askx.controller.ts)
+- **OpenRouter Client**: [src/infrastructure/providers/openrouter/openrouter.client.ts](mdc:src/infrastructure/providers/openrouter/openrouter.client.ts)
+
+## Architectural Principles
+- **Pattern**: Feature-based modular architecture with layered design
+- **Structure**: Organized by features, entities, and infrastructure
+- **Type Safety**: Strong TypeScript typing throughout
+- **Functional Programming**: fp-ts for error handling and composition
+- **Logging**: Structured logging with tslog
+- **Error Handling**: Centralized error handling with retry logic
+- **Caching**: Redis for chat history and response caching
+- **Queue System**: BullMQ for asynchronous job processing
