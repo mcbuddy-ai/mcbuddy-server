@@ -1,0 +1,105 @@
+---
+alwaysApply: true
+---
+
+# MCBuddy Server - Project Structure 📁
+
+## Root Structure
+
+### Main Files
+- **Entry Point**: [src/index.ts](mdc:src/index.ts) – Main application entry point
+- **Configuration**: [package.json](mdc:package.json), [tsconfig.json](mdc:tsconfig.json) – Project configuration
+- **Docker**: [Dockerfile](mdc:Dockerfile), [docker-compose.yml](mdc:docker-compose.yml) – Containerization
+- **Caddy**: [configurations/caddy/Caddyfile](mdc:configurations/caddy/Caddyfile) – Reverse proxy configuration
+- **API Collection**: [postman.json](mdc:postman.json) – Postman API collection
+
+### Sources/ Modules
+
+#### application/ (`src/application/`)
+- **Purpose**: Application initialization and server setup
+- **Key Files**:
+  - [entrypoint.ts](mdc:src/application/entrypoint.ts) – Application entry point with server initialization
+
+#### features/ask/ (`src/features/ask/`)
+- **Purpose**: Question processing with AI integration
+- **Key Files**:
+  - [ask.controller.ts](mdc:src/features/ask/ask.controller.ts) – HTTP controller for /ask endpoint
+  - [ask.service.ts](mdc:src/features/ask/ask.service.ts) – Business logic for question processing
+  - [ask.types.ts](mdc:src/features/ask/ask.types.ts) – Type definitions for ask feature
+  - [ask.env.ts](mdc:src/features/ask/ask.env.ts) – Environment variables for ask feature
+
+#### features/askx/ (`src/features/askx/`)
+- **Purpose**: Command execution through AI (Minecraft commands)
+- **Key Files**:
+  - [askx.controller.ts](mdc:src/features/askx/askx.controller.ts) – HTTP controller for /askx endpoint
+  - [askx.service.ts](mdc:src/features/askx/askx.service.ts) – Business logic for command generation
+  - [askx.types.ts](mdc:src/features/askx/askx.types.ts) – Type definitions for askx feature
+  - [askx.env.ts](mdc:src/features/askx/askx.env.ts) – Environment variables for askx feature
+
+#### features/health/ (`src/features/health/`)
+- **Purpose**: Health check endpoints
+- **Key Files**:
+  - [health.controller.ts](mdc:src/features/health/health.controller.ts) – Health check endpoint
+
+#### entities/user/ (`src/entities/user/`)
+- **Purpose**: User entity and data model
+- **Key Files**:
+  - [user.model.ts](mdc:src/entities/user/user.model.ts) – Mongoose model for users
+  - [user.types.ts](mdc:src/entities/user/user.types.ts) – Type definitions for user entity
+
+#### entities/usage/ (`src/entities/usage/`)
+- **Purpose**: Usage tracking entity and data model
+- **Key Files**:
+  - [usage.model.ts](mdc:src/entities/usage/usage.model.ts) – Mongoose model for usage tracking
+  - [usage.types.ts](mdc:src/entities/usage/usage.types.ts) – Type definitions for usage entity
+
+#### infrastructure/database/ (`src/infrastructure/database/`)
+- **Purpose**: Database connection and configuration
+- **Key Files**:
+  - [mongodb.client.ts](mdc:src/infrastructure/database/mongodb.client.ts) – MongoDB connection client
+  - [mongodb.env.ts](mdc:src/infrastructure/database/mongodb.env.ts) – Database environment configuration
+
+#### infrastructure/providers/openrouter/ (`src/infrastructure/providers/openrouter/`)
+- **Purpose**: OpenRouter API integration
+- **Key Files**:
+  - [openrouter.client.ts](mdc:src/infrastructure/providers/openrouter/openrouter.client.ts) – OpenRouter API client
+  - [openrouter.env.ts](mdc:src/infrastructure/providers/openrouter/openrouter.env.ts) – OpenRouter configuration
+  - [openrouter.types.ts](mdc:src/infrastructure/providers/openrouter/openrouter.types.ts) – Type definitions for OpenRouter
+
+#### infrastructure/queues/ (`src/infrastructure/queues/`)
+- **Purpose**: Job queue system with BullMQ
+- **Key Files**:
+  - [index.ts](mdc:src/infrastructure/queues/index.ts) – Queue exports
+  - [queue.config.ts](mdc:src/infrastructure/queues/queue.config.ts) – Queue configuration
+  - [workers.ts](mdc:src/infrastructure/queues/workers.ts) – Queue workers implementation
+
+#### shared/lib/ (`src/shared/lib/`)
+- **Purpose**: Common utilities and helpers
+- **Key Files**:
+  - [error.ts](mdc:src/shared/lib/error.ts) – Error handling utilities
+  - [retry.ts](mdc:src/shared/lib/retry.ts) – Retry logic with retry-ts
+
+#### shared/logging/ (`src/shared/logging/`)
+- **Purpose**: Logging configuration and utilities
+- **Key Files**:
+  - [logger.ts](mdc:src/shared/logging/logger.ts) – Logger configuration
+  - [context.ts](mdc:src/shared/logging/context.ts) – Logging context management
+
+#### shared/types/ (`src/shared/types/`)
+- **Purpose**: Shared type definitions
+- **Key Files**:
+  - [errors.ts](mdc:src/shared/types/errors.ts) – Error type definitions
+
+### Configurations (`configurations/`)
+- **Purpose**: Configuration files for external services
+- **Contents**: Caddy reverse proxy configuration
+
+## Architectural Principles of the Structure
+- **Modularity**: Feature-based organization with clear boundaries
+- **Layered Architecture**: Entities, Features, Infrastructure, Shared
+- **Type Safety**: TypeScript used throughout for compile-time safety
+- **Environment Configuration**: Dedicated .env.ts files for each feature
+- **Dependency Injection**: Clear separation of concerns
+- **Error Handling**: Centralized error handling with fp-ts
+- **Caching**: Redis for performance optimization
+- **Queue System**: Asynchronous job processing with BullMQ
