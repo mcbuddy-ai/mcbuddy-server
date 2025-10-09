@@ -1,4 +1,12 @@
-# McBuddy Server
+# 🛠️ McBuddy Server
+
+[![AI Capable](https://img.shields.io/badge/AI-Capable-brightgreen?style=flat&logo=openai&logoColor=white)](https://github.com/mcbuddy-ai/mcbuddy-server)
+[![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker&logoColor=white)](https://github.com/mcbuddy-ai/mcbuddy-server)
+[![Bun](https://img.shields.io/badge/Bun-1.0+-000000?style=flat&logo=bun&logoColor=white)](https://bun.sh/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13+-336791?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+
+**Язык**: 🇷🇺 Русский | [🇺🇸 English](README.EN.md) | [🇨🇳 中文](README.CN.md)
 
 🛠️⚡ Бэкенд для AI-ассистента MCBuddy — быстрый сервер на Bun с интеграцией OpenRouter, обработкой запросов из Minecraft серверов и Telegram ботов. Предоставляет REST API для получения AI-ответов на вопросы о Minecraft с контекстом и историей чата.
 
@@ -109,3 +117,5 @@ AI-инструменты использовались точечно для р�
 🇷🇺 **Сделано в России с любовью.** ❤️
 
 *MCBuddy — это результат любви к игре Minecraft и современным технологиям. Проект создан для русскоязычного сообщества игроков, с заботой о качестве кода и пользовательском опыте.*
+
+> 🫡 Made by Pavel Erokhin (Павел Ерохин), aka mairwunnx.
