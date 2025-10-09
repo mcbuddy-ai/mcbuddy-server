@@ -1,0 +1,119 @@
+---
+globs: *.ts,*.tsx
+---
+
+# TypeScript Files (.ts, .tsx) Rules
+
+## Language Version & Features
+- Target **TypeScript 5.0+** (or latest stable release)
+- Target **ESNext** for maximum modern JavaScript features
+- Use modern TypeScript features where appropriate:
+  - Type inference for reduced verbosity
+  - Union and intersection types
+  - Discriminated unions for type-safe state management
+  - Template literal types
+  - `satisfies` operator for type narrowing
+  - `const` assertions for literal types
+
+## Code Style
+- Use **2 spaces** for indentation
+- Always run formatter before commit
+- Naming conventions:
+  - **Interfaces/Types**: PascalCase
+  - **Functions/Variables**: camelCase
+  - **Constants**: UPPER_SNAKE_CASE
+  - **Files**: kebab-case.ts
+- Prefer `const` over `let`, avoid `var`
+- Use arrow functions for callbacks and short functions
+
+## Module Organization
+- Use ESNext modules (`import`/`export`)
+- Group imports logically:
+  1. External dependencies
+  2. Internal modules
+  3. Types
+  4. Constants
+- Prefer named exports over default exports
+- Keep files focused and single-purpose
+
+## Type Safety
+- Avoid `any` type; use `unknown` when type is truly unknown
+- Define explicit return types for public functions
+- Use strict TypeScript settings (`strict: true`)
+- Leverage type inference where it improves readability
+- Create dedicated `.types.ts` files for shared types
+
+## Error Handling
+- Use **fp-ts** for functional error handling (Either, TaskEither)
+- Always handle errors explicitly
+- Use custom error classes for domain-specific errors
+- Provide meaningful error messages
+- Log errors with context using structured logging
+- Use retry logic from `retry-ts` for transient failures
+
+## Logging
+- Use **structured logging** consistently (tslog)
+- Always include relevant context (IDs, parameters)
+- Apply proper levels: debug, info, warn, error, fatal
+- Never log sensitive data (tokens, passwords, API keys)
+- Use logging context for request tracing
+
+## Async/Await
+- Always use `async`/`await` over raw Promises
+- Handle promise rejections explicitly
+- Use `Promise.all()` for parallel operations
+- Add timeouts for external API calls
+- Use `AbortController` for cancellable operations
+- Consider using `TaskEither` from fp-ts for complex async flows
+
+## Functional Programming
+- Use **fp-ts** for functional patterns:
+  - `Either` for error handling
+  - `Option` for nullable values
+  - `TaskEither` for async operations with errors
+  - `pipe` for function composition
+- Keep functions pure where possible
+- Avoid side effects in business logic
+- Use immutable data structures
+
+## Best Practices
+- Keep functions small and focused
+- Use pure functions where possible
+- Avoid global state
+- Document complex logic with comments
+- Write self-documenting code with clear naming
+- Prefer composition over inheritance
+- Use repository pattern for data access
+- Separate business logic from infrastructure
+
+## Environment Variables
+- Validate environment variables at startup
+- Use dedicated `.env.ts` files for configuration
+- Never commit `.env` files to version control
+- Provide `.env.example` with all required variables
+- Use type-safe environment variable access
+
+## Database / External Resources
+- Encapsulate database access behind repository pattern
+- Use Mongoose for MongoDB with proper typing
+- Use Redis for caching with ioredis
+- Implement proper connection management
+- Handle database errors gracefully
+- Use transactions where data consistency is required
+- Implement retry logic for transient failures
+
+## API Design
+- Use RESTful conventions for endpoints
+- Validate request data with explicit schemas
+- Return consistent error responses
+- Use proper HTTP status codes
+- Document API endpoints (Postman collections)
+- Implement rate limiting and throttling
+- Support custom authentication headers (X-OpenRouter-Token)
+
+## Queue System
+- Use BullMQ for background jobs
+- Define clear job types and payloads
+- Implement proper error handling in workers
+- Use retry strategies for failed jobs
+- Monitor queue health and job status
