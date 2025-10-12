@@ -1,10 +1,12 @@
 # 🛠️ McBuddy Server
 
 [![AI Capable](https://img.shields.io/badge/AI-Capable-brightgreen?style=flat&logo=openai&logoColor=white)](https://github.com/mcbuddy-ai/mcbuddy-server)
-[![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker&logoColor=white)](https://github.com/mcbuddy-ai/mcbuddy-server)
-[![Bun](https://img.shields.io/badge/Bun-1.0+-000000?style=flat&logo=bun&logoColor=white)](https://bun.sh/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13+-336791?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![GitHub Release](https://img.shields.io/github/v/release/mcbuddy-ai/mcbuddy-server?style=flat&logo=github&color=blue)](https://github.com/mcbuddy-ai/mcbuddy-server/releases)
+[![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker&logoColor=white)](https://github.com/mcbuddy-ai/mcbuddy-server/pkgs/container/mcbuddy-server)
+[![Bun](https://img.shields.io/badge/Bun-1.2.18-000000?style=flat&logo=bun&logoColor=white)](https://bun.sh/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-8.0.15-47A248?style=flat&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+[![Redis](https://img.shields.io/badge/Redis-8.2-DC382D?style=flat&logo=redis&logoColor=white)](https://redis.io/)
 
 **Язык**: 🇷🇺 Русский | [🇺🇸 English](README.EN.md) | [🇨🇳 中文](README.CN.md)
 
@@ -12,10 +14,14 @@
 
 ## Сборка и деплой
 
-### Docker Compose (рекомендуется)
+### Docker Compose (рекомендуется для продакшена)
 
 1. **Подготовка конфигурации:**
    ```bash
+   # Клонируйте репозиторий
+   git clone https://github.com/mcbuddy-ai/mcbuddy-server
+   cd mcbuddy-server
+   
    # Скопируйте пример переменных окружения
    cp .env.sample .env
    
@@ -34,6 +40,39 @@
    docker compose up -d
    ```
 
+4. **Проверьте статус:**
+   ```bash
+   docker compose logs -f mcbuddy-server
+   ```
+
+### Docker Compose с готовым образом
+
+Если хотите использовать готовый образ и управлять MongoDB/Redis самостоятельно:
+
+1. Задекларируйте сервис mcbuddy-server в `docker-compose.yml`:
+
+```yaml
+services:
+  mcbuddy-server:
+    image: ghcr.io/mcbuddy-ai/mcbuddy-server:1.3.0
+    env_file: .env
+    environment:
+      MONGODB_URI: ${MONGODB_URI}
+      REDIS_URL: ${REDIS_URL}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      # ... другие переменные окружения
+```
+
+> **Примечание**: Вам потребуется передать все переменные окружения из файла `.env` или любым другим удобным способом.
+
+2. Задекларируйте сервисы MongoDB и Redis в `docker-compose.yml`. 
+> Важно, версия **MongoDB** должна быть `5.0+`, а **Redis** должна быть `6.0+`.
+
+3. Запустите сервисы:
+```bash
+docker compose up -d
+```
+
 ### Bare Metal
 
 1. **Установка зависимостей:**
@@ -44,7 +83,7 @@
    # Установите пакеты
    bun install
    ```
-> Важно! Не забудьте развернуть зависимые сервисы, redis, mongodb и caddy при надобности.
+> Важно! Не забудьте развернуть зависимые сервисы: Redis, MongoDB и Caddy при надобности.
 
 2. **Настройка переменных окружения:**
    ```bash
@@ -112,7 +151,7 @@ AI-инструменты использовались точечно для р�
 
 ---
 
-![image](./media.jpg)
+![image](./media.png)
 
 🇷🇺 **Сделано в России с любовью.** ❤️
 

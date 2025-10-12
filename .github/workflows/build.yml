@@ -1,0 +1,203 @@
+name: 🚀 Build and Release
+
+on:
+  push:
+    branches: [ master ]
+    paths: 
+      - '.version'
+      - 'Dockerfile'
+      - '.github/workflows/build.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'bun.lock'
+      - 'tsconfig.json'
+      - 'src/**'
+  pull_request:
+    branches: [ master ]
+    paths:
+      - 'Dockerfile'
+      - '.github/workflows/build.yml'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'bun.lock'
+      - 'tsconfig.json'
+      - 'src/**'
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  ORG: mcbuddy-ai
+  IMAGE_NAME: mcbuddy-server
+  PLATFORMS: linux/amd64
+
+jobs:
+  version-check:
+    name: 🔍 Check Version Changes
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master'
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      version-changed: ${{ steps.version-changed.outputs.changed }}
+      should-release: ${{ steps.should-release.outputs.release }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 2
+      - name: Get current version
+        id: version
+        run: |
+          VERSION=$(cat .version)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Current version: $VERSION"
+      - name: Check if version changed
+        id: version-changed
+        run: |
+          if git diff HEAD~1 HEAD --name-only | grep -q "^.version$"; then
+            echo "changed=true" >> $GITHUB_OUTPUT
+            echo "✅ Version file changed"
+          else
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "❌ Version file not changed"
+          fi
+      - name: Should we release?
+        id: should-release
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/master" && "${{ steps.version-changed.outputs.changed }}" == "true" ]]; then
+            echo "release=true" >> $GITHUB_OUTPUT
+            echo "🚀 Will create release and push image"
+          else
+            echo "release=false" >> $GITHUB_OUTPUT
+            echo "⏭️ Skipping release (not master or version not changed)"
+          fi
+
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.filter.outputs.server }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Paths filter
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          filters: |
+            server:
+              - '.version'
+              - 'Dockerfile'
+              - 'package.json'
+              - 'package-lock.json'
+              - 'bun.lock'
+              - 'tsconfig.json'
+              - 'src/**'
+
+  pr-check:
+    name: 🧪 PR Build Check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    needs: changes
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build MCBuddy Server image (PR check)
+        if: needs.changes.outputs.server == 'true'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          platforms: ${{ env.PLATFORMS }}
+          push: false
+          tags: ${{ env.IMAGE_NAME }}:pr-${{ github.event.number }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Build success
+        run: |
+          echo "✅ Docker образ успешно собран для PR #${{ github.event.number }}"
+
+  build-server:
+    name: 🔨 Build & push (mcbuddy-server)
+    needs: [changes, version-check]
+    if: needs.changes.outputs.server == 'true' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-qemu-action@v3
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Meta (mcbuddy-server)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.ORG }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest,enable=true
+            type=raw,value=${{ needs.version-check.outputs.version }},enable=${{ needs.version-check.outputs.version-changed == 'true' }}
+            type=sha,prefix=sha-,format=short
+            type=ref,event=branch
+
+      - name: Build & Push (mcbuddy-server)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          platforms: ${{ env.PLATFORMS }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APP_VERSION=${{ needs.version-check.outputs.version }}
+            BUILD_TIME=${{ github.event.head_commit.timestamp }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          no-cache: ${{ needs.version-check.outputs.version-changed == 'true' }}
+
+  release:
+    name: 📋 Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [version-check, build-server]
+    if: needs.version-check.outputs.should-release == 'true' && (needs.build-server.result == 'success' || needs.build-server.result == 'skipped')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ needs.version-check.outputs.version }}
+          release_name: 🛠️ MCBuddy Server v${{ needs.version-check.outputs.version }}
+          body: |
+            ## 🚀 MCBuddy Server v${{ needs.version-check.outputs.version }}
+            
+            ### 📦 Docker Image
+            ```bash
+            # MCBuddy Server
+            docker pull ${{ env.REGISTRY }}/${{ env.ORG }}/${{ env.IMAGE_NAME }}:${{ needs.version-check.outputs.version }}
+            docker pull ${{ env.REGISTRY }}/${{ env.ORG }}/${{ env.IMAGE_NAME }}:latest
+            ```
+          draft: false
+          prerelease: false

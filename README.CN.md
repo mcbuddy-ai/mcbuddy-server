@@ -1,10 +1,12 @@
 # 🛠️ McBuddy Server
 
 [![AI Capable](https://img.shields.io/badge/AI-Capable-brightgreen?style=flat&logo=openai&logoColor=white)](https://github.com/mcbuddy-ai/mcbuddy-server)
-[![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker&logoColor=white)](https://github.com/mcbuddy-ai/mcbuddy-server)
-[![Bun](https://img.shields.io/badge/Bun-1.0+-000000?style=flat&logo=bun&logoColor=white)](https://bun.sh/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13+-336791?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![GitHub Release](https://img.shields.io/github/v/release/mcbuddy-ai/mcbuddy-server?style=flat&logo=github&color=blue)](https://github.com/mcbuddy-ai/mcbuddy-server/releases)
+[![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker&logoColor=white)](https://github.com/mcbuddy-ai/mcbuddy-server/pkgs/container/mcbuddy-server)
+[![Bun](https://img.shields.io/badge/Bun-1.2.18-000000?style=flat&logo=bun&logoColor=white)](https://bun.sh/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-8.0.15-47A248?style=flat&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+[![Redis](https://img.shields.io/badge/Redis-8.2-DC382D?style=flat&logo=redis&logoColor=white)](https://redis.io/)
 
 **语言**: [🇷🇺 Русский](README.md) | [🇺🇸 English](README.EN.md) | 🇨🇳 中文
 
@@ -26,7 +28,7 @@
 
 - **用户令牌** — 可以使用自定义 OpenRouter 令牌
 - **响应缓存** — Redis 用于快速访问历史记录
-- **数据库** — PostgreSQL 用于存储用户和指标
+- **数据库** — MongoDB 用于存储用户和指标
 - **任务队列** — BullMQ 用于后台任务处理
 - **健康检查** — 服务状态监控
 
@@ -79,7 +81,7 @@ curl -X POST https://mcbuddy.ru/api/askx \
 ## 兼容性
 
 - **REST API** — 适用于任何 HTTP 客户端
-- **数据库**: PostgreSQL 13+
+- **数据库**: MongoDB 8.0+
 - **缓存**: Redis 6.0+
 - **运行时**: Bun 1.0+
 - **部署**: Docker + Docker Compose
@@ -87,42 +89,61 @@ curl -X POST https://mcbuddy.ru/api/askx \
 
 ## 部署
 
-### Docker Compose（推荐）
+### Docker Compose（推荐用于生产环境）
 
-1. 克隆仓库：
-```bash
-git clone https://github.com/mcbuddy-ai/mcbuddy-server
-cd mcbuddy-server
+1. **准备配置：**
+   ```bash
+   # 克隆仓库
+   git clone https://github.com/mcbuddy-ai/mcbuddy-server
+   cd mcbuddy-server
+   
+   # 复制环境变量示例
+   cp .env.sample .env
+   
+   # 使用您的设置编辑 .env 文件
+   nano .env
+   ```
+
+2. **域名设置：**
+   ```bash
+   # 编辑 Caddyfile 并将 mcbuddy.ru 替换为您的域名
+   nano configurations/caddy/Caddyfile
+   ```
+
+3. **启动：**
+   ```bash
+   docker compose up -d
+   ```
+
+4. **检查状态：**
+   ```bash
+   docker compose logs -f mcbuddy-server
+   ```
+
+### 使用预构建镜像的 Docker Compose
+
+如果您想使用预构建镜像并自行管理 MongoDB/Redis：
+
+1. 在 `docker-compose.yml` 中声明 mcbuddy-server 服务：
+
+```yaml
+services:
+  mcbuddy-server:
+    image: ghcr.io/mcbuddy-ai/mcbuddy-server:1.3.0
+    env_file: .env
+    environment:
+      MONGODB_URI: ${MONGODB_URI}
+      REDIS_URL: ${REDIS_URL}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      # ... 其他环境变量
 ```
 
-2. 配置环境变量：
-```bash
-# 创建 .env 文件
-cp .env.sample .env
+> **注意**：您需要从 `.env` 文件或其他任何方便的方式提供所有环境变量。
 
-# 必需的变量：
-OPENROUTER_API_KEY=your_openrouter_api_key
-POSTGRES_HOST=postgres
-POSTGRES_PORT=5432
-POSTGRES_DATABASE=mcbuddy
-POSTGRES_USERNAME=mcbuddy
-POSTGRES_PASSWORD=your_secure_password
-REDIS_URL=redis://redis:6379
+2. 在 `docker-compose.yml` 中声明 MongoDB 和 Redis 服务。
+> 重要，**MongoDB** 版本应为 `8.0+`，**Redis** 应为 `8.0+`。
 
-# 可选（用于网络搜索）：
-BRAVE_SEARCH_API_KEY=your_brave_api_key
-```
-
-> **注意**：在 [openrouter.ai](https://openrouter.ai/) 获取您的 OpenRouter API 密钥。
-
-3. 配置域名（可选）：
-```bash
-# 编辑 Caddyfile
-nano configurations/caddy/Caddyfile
-# 将 mcbuddy.ru 替换为您的域名
-```
-
-4. 启动服务：
+3. 启动服务：
 ```bash
 docker compose up -d
 ```
@@ -182,7 +203,7 @@ X-OpenRouter-Token: sk-or-your-custom-token
 
 - **TypeScript** — 主要开发语言
 - **Bun.js** — 快速的 JS 运行时和包管理器
-- **PostgreSQL + Drizzle ORM** — 主数据库，带有类型安全的 ORM
+- **MongoDB + Mongoose** — 主数据库，带有类型安全的 ODM
 - **Redis + ioredis** — 聊天历史和会话缓存
 - **BullMQ** — 队列系统和后台任务
 - **Caddy** — 反向代理和 SSL 终止
@@ -217,7 +238,7 @@ AI 工具被选择性地用于特定任务：优化 OpenRouter 的提示、生�
 
 ---
 
-![image](./media.jpg)
+![image](./media.png)
 
 🇷🇺 **在俄罗斯用爱制作。** ❤️
 

@@ -1,10 +1,12 @@
 # 🛠️ McBuddy Server
 
 [![AI Capable](https://img.shields.io/badge/AI-Capable-brightgreen?style=flat&logo=openai&logoColor=white)](https://github.com/mcbuddy-ai/mcbuddy-server)
-[![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker&logoColor=white)](https://github.com/mcbuddy-ai/mcbuddy-server)
-[![Bun](https://img.shields.io/badge/Bun-1.0+-000000?style=flat&logo=bun&logoColor=white)](https://bun.sh/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-13+-336791?style=flat&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![GitHub Release](https://img.shields.io/github/v/release/mcbuddy-ai/mcbuddy-server?style=flat&logo=github&color=blue)](https://github.com/mcbuddy-ai/mcbuddy-server/releases)
+[![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker&logoColor=white)](https://github.com/mcbuddy-ai/mcbuddy-server/pkgs/container/mcbuddy-server)
+[![Bun](https://img.shields.io/badge/Bun-1.2.18-000000?style=flat&logo=bun&logoColor=white)](https://bun.sh/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-8.0.15-47A248?style=flat&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+[![Redis](https://img.shields.io/badge/Redis-8.2-DC382D?style=flat&logo=redis&logoColor=white)](https://redis.io/)
 
 **Language**: [🇷🇺 Русский](README.md) | 🇺🇸 English | [🇨🇳 中文](README.CN.md)
 
@@ -26,7 +28,7 @@
 
 - **User tokens** — ability to use custom OpenRouter token
 - **Response caching** — Redis for fast access to history
-- **Database** — PostgreSQL for storing users and metrics
+- **Database** — MongoDB for storing users and metrics
 - **Task queues** — BullMQ for background task processing
 - **Health check** — service status monitoring
 
@@ -79,59 +81,102 @@ curl -X POST https://mcbuddy.ru/api/askx \
 ## Compatibility
 
 - **REST API** — works with any HTTP clients
-- **Database**: PostgreSQL 13+
-- **Cache**: Redis 6.0+
+- **Database**: MongoDB 8.0+
+- **Cache**: Redis 8.0+
 - **Runtime**: Bun 1.0+
 - **Deployment**: Docker + Docker Compose
 - **Proxy**: Caddy for SSL and routing
 
 ## Deployment
 
-### Docker Compose (recommended)
+### Docker Compose (recommended for production)
 
-1. Clone the repository:
-```bash
-git clone https://github.com/mcbuddy-ai/mcbuddy-server
-cd mcbuddy-server
+1. **Prepare configuration:**
+   ```bash
+   # Clone the repository
+   git clone https://github.com/mcbuddy-ai/mcbuddy-server
+   cd mcbuddy-server
+   
+   # Copy environment variables example
+   cp .env.sample .env
+   
+   # Edit the .env file with your settings
+   nano .env
+   ```
+
+2. **Domain setup:**
+   ```bash
+   # Edit Caddyfile and replace mcbuddy.ru with your domain
+   nano configurations/caddy/Caddyfile
+   ```
+
+3. **Start:**
+   ```bash
+   docker compose up -d
+   ```
+
+4. **Check status:**
+   ```bash
+   docker compose logs -f mcbuddy-server
+   ```
+
+### Docker Compose with pre-built image
+
+If you want to use the pre-built image and manage MongoDB/Redis yourself:
+
+1. Declare the mcbuddy-server service in `docker-compose.yml`:
+
+```yaml
+services:
+  mcbuddy-server:
+    image: ghcr.io/mcbuddy-ai/mcbuddy-server:1.3.0
+    env_file: .env
+    environment:
+      MONGODB_URI: ${MONGODB_URI}
+      REDIS_URL: ${REDIS_URL}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      # ... other environment variables
 ```
 
-2. Configure environment variables:
-```bash
-# Create .env file
-cp .env.sample .env
+> **Note**: You need to provide all environment variables from the `.env` file or any other convenient way.
 
-# Required variables:
-OPENROUTER_API_KEY=your_openrouter_api_key
-POSTGRES_HOST=postgres
-POSTGRES_PORT=5432
-POSTGRES_DATABASE=mcbuddy
-POSTGRES_USERNAME=mcbuddy
-POSTGRES_PASSWORD=your_secure_password
-REDIS_URL=redis://redis:6379
+2. Declare MongoDB and Redis services in `docker-compose.yml`. 
+> Important, **MongoDB** version should be `8.0+`, and **Redis** should be `8.0+`.
 
-# Optional (for web search):
-BRAVE_SEARCH_API_KEY=your_brave_api_key
-```
-
-> **Note**: Get your OpenRouter API key at [openrouter.ai](https://openrouter.ai/).
-
-3. Configure domain (optional):
-```bash
-# Edit Caddyfile
-nano configurations/caddy/Caddyfile
-# Replace mcbuddy.ru with your domain
-```
-
-4. Start the services:
+3. Start the services:
 ```bash
 docker compose up -d
 ```
 
-5. Check the status:
-```bash
-docker compose logs -f mcbuddy-server
-curl http://localhost:3000/api/health
-```
+### Bare Metal
+
+1. **Install dependencies:**
+   ```bash
+   # Install Bun.js
+   curl -fsSL https://bun.sh/install | bash
+   
+   # Install packages
+   bun install
+   ```
+> Important! Don't forget to deploy dependent services: Redis, MongoDB and Caddy if needed.
+
+2. **Configure environment variables:**
+   ```bash
+   cp .env.sample .env
+   # Edit .env with settings for MongoDB, Redis and OpenRouter
+   ```
+
+3. **Start:**
+   ```bash
+   # Development
+   bun run dev
+   
+   # Production
+   bun run build
+   bun run start
+   ```
+
+**⚠️ Important:** Make sure to configure environment variables from the `.env.sample` file before running. Pay special attention to `OPENROUTER_API_KEY`, `MONGODB_URI` and `REDIS_URL` and prompts.
 
 ### Bare Metal
 
@@ -217,7 +262,7 @@ AI tools were used selectively for specific tasks: optimizing prompts for OpenRo
 
 ---
 
-![image](./media.jpg)
+![image](./media.png)
 
 🇷🇺 **Made in Russia with love.** ❤️
 
