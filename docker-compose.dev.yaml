@@ -52,7 +52,7 @@ services:
     mem_reservation: 300m
     networks: [ default ]
     ports:
-      - '${PORT}:3000'
+      - ${PORT}:3000
     restart: unless-stopped
     security_opt: [ "seccomp:unconfined" ]
   mcbuddy-server-mongo:
@@ -121,4 +121,3 @@ volumes:
     driver: local
   mcbuddy-server-redis-data-dev:
     driver: local
-
