@@ -1,0 +1,65 @@
+{
+  "name": "mcbuddy-server-dev",
+  "dockerComposeFile": [
+    "../docker-compose.dev.yaml"
+  ],
+  "service": "mcbuddy-server",
+  "workspaceFolder": "/workspace",
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {},
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/docker-from-docker:1": {},
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "20"
+    }
+  },
+  "forwardPorts": [
+    3000,
+    6379,
+    27017
+  ],
+  "portsAttributes": {
+    "3000": {
+      "label": "MCBuddy Server API",
+      "onAutoForward": "notify"
+    },
+    "6379": {
+      "label": "Redis",
+      "onAutoForward": "notify"
+    },
+    "27017": {
+      "label": "MongoDB",
+      "onAutoForward": "notify"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "ms-azuretools.vscode-docker",
+        "mongodb.mongodb-vscode",
+        "redis.redis-for-vscode",
+        "editorconfig.editorconfig",
+        "oven.bun-vscode"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "dbaeumer.vscode-eslint",
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": true
+        },
+        "files.eol": "\n",
+        "typescript.tsdk": "node_modules/typescript/lib"
+      }
+    }
+  },
+  "postCreateCommand": "bun install",
+  "postStartCommand": "bun --version",
+  "runServices": [
+    "mcbuddy-server-mongo",
+    "mcbuddy-server-redis",
+    "mcbuddy-server"
+  ],
+  "shutdownAction": "stopCompose"
+}
+
