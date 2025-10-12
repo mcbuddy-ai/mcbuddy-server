@@ -23,7 +23,7 @@
     "@types/bun": "latest",
     "@types/ioredis": "^5.0.0",
     "@types/uuid": "^10.0.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.9.3"
   },
   "dependencies": {
     "amqplib": "^0.10.9",
@@ -36,6 +36,6 @@
     "uuid": "^10.0.0"
   },
   "peerDependencies": {
-    "typescript": "^5.0.0"
+    "typescript": "^5.9.3"
   }
 }
