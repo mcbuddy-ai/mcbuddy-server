@@ -50,7 +50,7 @@ services:
     mem_reservation: 300m
     networks: [ default ]
     ports:
-      - '${PORT}:3000'
+      - ${PORT}:3000
     restart: unless-stopped
   mcbuddy-server-mongo:
     command: ["--wiredTigerCacheSizeGB", "0.25"]
@@ -118,4 +118,3 @@ volumes:
     driver: local
   mcbuddy-server-redis-data:
     driver: local
-
