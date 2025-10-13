@@ -7,7 +7,7 @@ import { TaskEither, tryCatch } from 'fp-ts/TaskEither';
 import { policies, retry } from '../../shared/lib/retry';
 import { logger } from "../../shared/logging/logger";
 import { API_ERRORS, apierror, ApiError } from "../../shared/types/errors";
-import { addJob, waitForJobResult, AskJobData } from "../../infrastructure/queues";
+import { ask } from "./ask.service";
 import { AskRequest, AskResponse, Message } from "./ask.types";
 import { MAX_MESSAGES, CHAT_TTL_SECONDS } from "./ask.env";
 
@@ -22,7 +22,7 @@ export const handleAsk = (req: Request) => {
     TE.bindTo('body'),
     TE.bind('token', () => TE.right(token)),
     TE.chainFirst(saveUserMessage),
-    TE.bind('aiResult', processWithQueue),
+    TE.bind('aiResult', getAiResponse),
     TE.chainFirst(saveAssistantMessage),
     TE.map(createSuccessResponse),
     TE.getOrElse(e => T.of(error(e)))
@@ -32,46 +32,7 @@ export const handleAsk = (req: Request) => {
 const getUserId = (body: AskRequest): string => body.user_id || "anonymous";
 const getPlatform = (body: AskRequest): string => body.platform || 'unknown';
 const saveUserMessage = ({ body }: { body: AskRequest }) => add(getUserId(body), 'user', body.question.trim());
-
-const processWithQueue = ({ body, token }: { body: AskRequest, token?: string }): TE.TaskEither<ApiError, AskResponse> => {
-  const jobData: AskJobData = {
-    type: 'ask',
-    userId: getUserId(body),
-    question: body.question.trim(),
-    platform: getPlatform(body),
-    token,
-    jobId: crypto.randomUUID(),
-  };
-
-  return TE.tryCatch(
-    async () => {
-      logger.info(`Adding ASK job to queue for user: ${jobData.userId}`);
-      
-      await addJob(jobData);
-      
-      const result = await waitForJobResult(jobData.jobId, 300000);
-      
-      if (!result.success) {
-        const apiError: ApiError = result.error || { 
-          message: 'Unknown queue error', 
-          code: 'QUEUE_ERROR', 
-          statusCode: 500 
-        };
-        throw apiError;
-      }
-      
-      return result.data as AskResponse;
-    },
-    (error): ApiError => {
-      if (error && typeof error === 'object' && 'code' in error) {
-        return error as ApiError;
-      }
-      logger.error('Queue processing error:', error);
-      return apierror(API_ERRORS.PROCESSING_ERROR, String(error));
-    }
-  );
-};
-
+const getAiResponse = ({ body, token }: { body: AskRequest, token?: string }) => ask(getUserId(body), body.question.trim(), getPlatform(body), token);
 const saveAssistantMessage = ({ body, aiResult }: { body: AskRequest, aiResult: AskResponse }) => add(getUserId(body), 'assistant', aiResult.response);
 const createSuccessResponse = ({ body, aiResult }: { body: AskRequest, aiResult: AskResponse }) => success(body)(aiResult);
 
