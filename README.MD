@@ -54,7 +54,7 @@
 ```yaml
 services:
   mcbuddy-server:
-    image: ghcr.io/mcbuddy-ai/mcbuddy-server:1.3.0
+    image: ghcr.io/mcbuddy-ai/mcbuddy-server:1.3.3
     env_file: .env
     environment:
       MONGODB_URI: ${MONGODB_URI}
