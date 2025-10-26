@@ -27,7 +27,7 @@
   },
   "dependencies": {
     "amqplib": "^0.10.9",
-    "bullmq": "^5.56.8",
+    "bullmq": "^5.61.2",
     "fp-ts": "^2.16.10",
     "ioredis": "^5.8.2",
     "mongoose": "^8.19.2",
