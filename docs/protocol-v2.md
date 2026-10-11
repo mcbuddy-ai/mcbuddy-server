@@ -66,11 +66,27 @@ Answers: `200 { "accepted": true }`, `404` unknown or finished run or call, `409
 | `get_server` | – | software, version, difficulty, online player count, plugin version |
 | `get_locations` | – | the player's respawn point (bed or anchor; null when none), the world spawn, and the last death location, each with x, y, z, dimension, distance, and direction from the player when in the same dimension |
 | `get_villager_trades` | – | the villager or wandering trader under the crosshair (8 blocks): profession, level, trades [{buy: [{id, count}], sell: {id, count, enchantments?}, uses, max_uses}] |
-| `point_to` | `{ "x": 0, "y": 64, "z": 0, "label"?: "base" }` | Points the player's compass at the spot (same dimension) and draws a short particle trail toward it that only this player sees. Returns distance and direction |
+| `point_to` | `{ "x": 0, "y": 64, "z": 0, "label"?: "base", "seconds"?: 1–30 }` | Points the player's compass at the spot (same dimension) and draws a particle trail toward it that only this player sees, for `seconds` (default 2). Returns distance and direction |
 | `sort_inventory` | – | Merges stacks and sorts the main inventory (slots 9–35) by item; the hotbar, armor, and offhand stay put. Returns how many stacks were merged |
 | `set_reminder` | `{ "minutes": 1–120, "text": "≤ 100 chars" }` | Reminds the player in chat with a sound after the delay and returns the reminder's `id`; at most 10 pending per player by default (`tools.reminders.max_pending`); lost on a server restart or when the player leaves |
 | `get_reminders` | – | the player's pending reminders, soonest first: [{id, text, minutes_left, due_at}] |
 | `cancel_reminder` | `{ "id": "k3f9" }` or `{ "all": true }` | Cancels one reminder or all of them; returns `{ cancelled }` |
+| `ping_me` | – | A sound and particles above the player that everyone nearby sees and hears, to find them in a crowd or a cave |
+| `add_note` | `{ "text": "≤ 200 chars", "here"?: true, "x"?, "y"?, "z"?, "dimension"? }` | Writes a note in the player's notebook, kept on disk across restarts (200 per player by default, `tools.notes.max_per_player`). By default it records where the player stands; with `here: false` it takes `x`, `z` (and optional `y`, `dimension`), or no place at all. Returns `{ id, text, x?, y?, z?, dimension? }` |
+| `find_notes` | `{ "query"?: "arrows", "near"?: true, "limit"?: 1–50 }` | `{ matched, total, notes: [{id, text, x?, y?, z?, dimension?, distance?, direction?, created_at}] }`, nearest first. `query` matches text case-insensitively; when nothing matches, `matched` is false and every note comes back, so the model can match by meaning |
+| `delete_note` | `{ "id": "k3f9" }` | Deletes a note; an unknown id is an error |
+| `get_container` | – | the container under the crosshair (6 blocks): type, custom name, slots, used_slots, items {id: count} biggest first, and inside_shulker_boxes {id: count} |
+| `scan_nearby_containers` | `{ "item"?: "redstone", "radius"?: 1–12 }` default 8 | up to 20 containers nearest first with offsets dx, dy, dz; with `item`, only containers holding it, each with `count`, plus `total_<item>`; without it, used_slots and the top 4 items |
+| `get_block_info` | – | the block under the crosshair: id, hardness, blast_resistance, preferred_tool, needs_tier, held_tool_is_right, break_seconds with the held item, drops_with_held_item, age/max_age for growing blocks, waterlogged, block_light, sky_light |
+| `get_item_durability` | – | hotbar, armor, and offhand items that wear: slot, id, remaining, max, percent, unbreaking and expected_uses, mending, almost_broken under 10% |
+| `get_xp_info` | `{ "target_level"?: 0–100 }` | level, progress, total_points, points_to_next_level, and points_to_target, from the vanilla formulas |
+| `get_food_options` | – | food, saturation, hunger_missing, and foods in the inventory [{id, count, hunger, saturation, note?}] by saturation; notes name side effects (rotten flesh, pufferfish, golden apples…) |
+| `get_map_info` | – | the filled map in either hand: scale_level, blocks_per_side, center_x, center_z, dimension, locked, player_inside |
+| `get_enchant_options` | – | the enchanting table under the crosshair: bookshelves that count (blocked by anything in the gap), top_offer_min_level and top_offer_max_level, player_level, lapis_in_inventory |
+| `get_mob_info` | – | the mob under the crosshair (16 blocks; never another player): type, health, max_health, armor, attack_damage, hostile, distance, and your_hit {weapon, damage_per_hit, hits_to_kill, estimate} counting armor and Sharpness, Smite, Bane of Arthropods |
+| `get_light_spawn_check` | `{ "radius"?: 1–16 }` default 8 | dark_spots where hostile mobs can spawn (solid floor, two free blocks, block light 0, within ±6 height) and the 10 nearest offsets |
+| `get_brewing_items` | – | brewing items in the inventory (potions with their type) and up to 4 brewing stands within 8 blocks: offsets, fuel_level, seconds_left, ingredient, fuel, bottles |
+| `scan_farm` | `{ "radius"?: 1–16 }` default 8 | crops by type {total, ripe, max_age, by_age}, farmland hydrated/dry, composter_levels, hoppers, spawners by mob, animals by type, within ±4 height |
 
 ### Operator tools
 
