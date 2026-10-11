@@ -27,9 +27,23 @@ The plugin opens one streaming request, `POST /api/v2/chat`, per question. The s
 
 For `/askx`, a `commands` event with the command list replaces the text. The full protocol is in [docs/protocol-v2.md](docs/protocol-v2.md).
 
-Game tools only see the player who asked and the world around them; other players' coordinates and inventories stay out of reach. The plugin sends the list of tools it offers, so a server admin can switch any of them off. Web search (`search_web`) runs on the backend, and the agent decides when it's worth it instead of searching for every question.
+Game tools only see the player who asked and the world around them; other players' coordinates and inventories stay out of reach. The plugin sends the list of tools it offers, so a server admin can switch any of them off. Besides reading, everyone gets harmless actions: pointing the compass at a spot, sorting the inventory, a reminder. Tools that give items, teleport, or change the game mode, time, or weather go to operators only. The backend drops them for everyone else, even if a plugin offers them.
 
-`POST /api/ask` and `POST /api/askx` work as before for the Telegram bot and plugins older than 2.0: the same agent without game tools, one JSON answer. Chat history is shared: Redis keeps each user's recent messages for both API versions.
+Three tools run on the backend:
+
+- `search_web` searches the web through a search model. The agent decides when it's worth it instead of searching for every question;
+- `exact_calculations` evaluates expressions exactly with [math.js](https://mathjs.org) at 64 significant digits: stacks, Nether coordinates, XP, unit conversions. Each expression runs in a worker for at most a second;
+- `remember` and `forget` keep a lasting memory about the player.
+
+The agent answers in the language of the question. The game locale only matters when the message has no clear language.
+
+### Memory
+
+Each player has a session and a lasting memory. The session lives in Redis for 24 hours after the last question. It holds the last 8 to 12 questions verbatim and a short summary of everything before them. The model writes that summary after the answer, so the player never waits for it. `/askx` requests land in the session as one line: what was asked and which commands came out.
+
+The lasting memory sits in MongoDB and never expires. It's up to 30 short facts: where the base is, what the player is working on, how they like answers. The agent saves them itself and says so. The plugin gives players `/ask new`, `/ask memory`, and `/ask forget` through the `/api/v2/users/{user_id}/…` endpoints described in the protocol.
+
+`POST /api/ask` and `POST /api/askx` work as before for the Telegram bot and plugins older than 2.0: the same agent without game tools, one JSON answer. The session is shared between both API versions.
 
 > Pending tool calls live in the process's memory, so the server assumes a single instance. With several, the tool result must reach the instance that holds the stream.
 
@@ -64,7 +78,8 @@ Players and bots can send `X-OpenRouter-Token: sk-or-...` to use their own OpenR
 | `MAX_AGENT_STEPS` | Model calls per question | `8` |
 | `MAX_ACTIVE_RUNS` | Streaming questions at once | `200` |
 | `SSE_PING_MS` | Ping interval that keeps proxies from closing the stream | `15000` |
-| `MAX_MESSAGES`, `CHAT_TTL_SECONDS` | Chat history length and lifetime in Redis | `25`, `3600` |
+| `CHAT_TTL_SECONDS` | How long a chat session lives after the last question | `86400` |
+| `CALC_TIMEOUT_MS` | How long `exact_calculations` gives one expression | `1000` |
 
 Prompts live in [src/prompts](src/prompts) (`minecraft-ask.md`, `minecraft-askx.md`, `telegram.md`) and ship inside the build. Each run appends who asks, their language, the server version, and the available tools. Remove old `SYSTEM_MESSAGE*` variables to switch to the new prompts. The old `SYSTEM_MESSAGE*` variables are no longer read. A `perplexity/…` main model can’t call tools, so the server moves it to search and answers with the default model.
 

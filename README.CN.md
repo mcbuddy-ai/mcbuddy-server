@@ -27,15 +27,29 @@ MCBuddy Server 是一个基于 OpenRouter 的 [Mastra](https://mastra.ai) 智能
 
 对于 `/askx`，返回的是包含命令列表的 `commands` 事件。完整协议见 [docs/protocol-v2.md](docs/protocol-v2.md)。
 
-游戏工具只能看到提问的玩家及其周围的世界，看不到其他玩家的坐标和背包。网络搜索（`search_web`）在后端执行，由智能体自行决定何时搜索。
+游戏工具只能看到提问的玩家及其周围的世界，看不到其他玩家的坐标和背包。除了读取信息，所有玩家还能使用无害的操作：让指南针指向某个位置、整理背包、设置提醒。给予物品、传送、更改游戏模式、时间或天气的工具只提供给管理员（OP），即使插件提供了这些工具，后端也会对其他玩家丢弃它们。
 
-`POST /api/ask` 和 `POST /api/askx` 保持不变，供 Telegram 机器人和 2.0 之前的插件使用：同一个智能体，但没有游戏工具，一次返回 JSON。聊天记录在 Redis 中共享。
+后端运行三类工具：
+
+- `search_web`：通过搜索模型联网搜索，由智能体自行决定何时搜索；
+- `exact_calculations`：用 [math.js](https://mathjs.org) 以 64 位有效数字精确计算：堆叠数量、下界坐标、经验、单位换算。每个表达式在独立的 worker 中最多运行 1 秒；
+- `remember` 和 `forget`：维护关于玩家的长期记忆。
+
+智能体用提问所用的语言回答，只有在消息看不出语言时才参考游戏语言设置。
+
+### 记忆
+
+每个玩家有一个会话和一份长期记忆。会话保存在 Redis 中，最后一次提问后保留 24 小时，包含最近 8 到 12 轮原文以及更早内容的简短摘要。摘要由模型在回答发出后生成，玩家无需等待。`/askx` 请求以一行记录进入会话：请求内容和生成的命令。
+
+长期记忆保存在 MongoDB 中，不会过期，最多 30 条简短事实：基地位置、玩家正在做的事、偏好的回答方式。智能体会自行保存并告知玩家。插件通过协议中描述的 `/api/v2/users/{user_id}/…` 接口为玩家提供 `/ask new`、`/ask memory` 和 `/ask forget`。
+
+`POST /api/ask` 和 `POST /api/askx` 保持不变，供 Telegram 机器人和 2.0 之前的插件使用：同一个智能体，但没有游戏工具，一次返回 JSON。两个 API 版本共享同一个会话。
 
 > 等待中的工具调用保存在进程内存中，因此服务器按单实例设计。
 
 ## 环境变量
 
-主要变量：`OPENROUTER_API_KEY`（必填）、`OPENROUTER_API_MODEL`（必须支持工具调用，默认 `openai/gpt-6-luna`）、`SEARCH_MODEL`（联网搜索模型，默认 `perplexity/sonar`）、`OPENROUTER_API_CTX`、`OPENROUTER_REASONING_EFFORT`、`TOOL_TIMEOUT_MS`（默认 15000）、`MAX_AGENT_STEPS`（默认 8）、`MAX_ACTIVE_RUNS`、`SSE_PING_MS`、`MAX_MESSAGES`、`CHAT_TTL_SECONDS`。旧的 `SYSTEM_MESSAGE*` 变量已不再读取，提示词只在 `src/prompts` 中修改。如果主模型设为 `perplexity/…`（不支持工具调用），服务器会自动把它用于搜索，并用默认模型回答。完整说明见俄文 README。
+主要变量：`OPENROUTER_API_KEY`（必填）、`OPENROUTER_API_MODEL`（必须支持工具调用，默认 `openai/gpt-6-luna`）、`SEARCH_MODEL`（联网搜索模型，默认 `perplexity/sonar`）、`OPENROUTER_API_CTX`、`OPENROUTER_REASONING_EFFORT`、`TOOL_TIMEOUT_MS`（默认 15000）、`MAX_AGENT_STEPS`（默认 8）、`MAX_ACTIVE_RUNS`、`SSE_PING_MS`、`CHAT_TTL_SECONDS`（会话保留时间，默认 86400）、`CALC_TIMEOUT_MS`（默认 1000）。旧的 `SYSTEM_MESSAGE*` 变量已不再读取，提示词只在 `src/prompts` 中修改。如果主模型设为 `perplexity/…`（不支持工具调用），服务器会自动把它用于搜索，并用默认模型回答。完整说明见俄文 README。
 
 提示词位于 [src/prompts](src/prompts)，随构建一起打包。
 

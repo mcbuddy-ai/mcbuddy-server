@@ -1,6 +1,6 @@
 # MCBuddy Server: notes for AI agents
 
-The backend of MCBuddy, an AI buddy for Minecraft players and a Telegram bot. A Mastra agent on Bun answers questions through OpenRouter, looks up the player's game state through tools the Minecraft plugin runs, and searches the web when it needs fresh facts. README.MD explains it for humans; read it first.
+The backend of MCBuddy, an AI buddy for Minecraft players and a Telegram bot. A Mastra agent on Bun answers questions through OpenRouter, looks up the player's game state through tools the Minecraft plugin runs, searches the web when it needs fresh facts, computes exactly, and remembers each player. README.MD explains it for humans; read it first.
 
 ## Talking to the owner
 
@@ -14,13 +14,16 @@ The backend of MCBuddy, an AI buddy for Minecraft players and a Telegram bot. A 
 | `src/application/` | Entrypoint, routes, shared dependencies |
 | `src/features/chat/` | `POST /api/v2/chat`: the SSE stream and the bridge that hands client tools to the plugin and waits for `POST /api/v2/chat/{run}/tools/{call}` |
 | `src/features/ask`, `src/features/askx` | v1 endpoints for plugins before 2.0 (the Telegram bot mcbuddy-ai/mcbuddy-bot is archived); keep their request and response shapes |
-| `src/features/tools/` | Client tool definitions (run by the plugin, only about the asking player) and `search_web` (runs here, through an OpenRouter search model) |
-| `src/agent/` | The agent runner, prompt assembly, askx command validation |
+| `src/features/tools/` | Client tool definitions (run by the plugin, only about the asking player; operator tools only for operators) and the server tools: `search_web` (an OpenRouter search model), `exact_calculations` (math.js in a worker), `remember`/`forget` |
+| `src/features/users/` | `/api/v2/users/{user_id}/session` and `/memories`: the plugin's `/ask new`, `/ask memory`, `/ask forget` |
+| `src/agent/` | The agent runner, prompt assembly, the session summarizer, askx command validation |
 | `src/prompts/*.md` | The system prompts, bundled into the build; the only place to change them |
-| `src/infrastructure/` | Redis chat history (same keys as v1), MongoDB, the OpenRouter provider |
+| `src/infrastructure/` | The Redis session (v1 history key plus `chat_summary:*`), memories in MongoDB, the OpenRouter provider |
 | `docs/protocol-v2.md` | The contract with the plugin. Change it only additively, and change the plugin (mcbuddy-ai/mcbuddy-spigot) to match |
 
 The tool bridge keeps pending calls in memory, so the backend runs as one instance.
+
+The build bundles `src/features/tools/calc.worker.ts` next to the entrypoint; `exact-calculations.tool.ts` finds it by a computed name so the bundler leaves the path alone. Keep both in `bun run build`.
 
 ## Deploying: a push to master is a release
 
