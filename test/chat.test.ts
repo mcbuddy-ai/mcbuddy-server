@@ -51,8 +51,10 @@ describe("POST /api/v2/chat", () => {
     const events = await readSse(response, answerTools(base, { get_inventory: { main: [{ id: "diamond_sword", count: 1 }] } }));
 
     expect(events.map((e) => e.event)).toEqual([
-      "start", "reasoning", "tool_status", "tool_call", "tool_status", "text", "text", "usage", "done",
+      "start", "reasoning", "tool_status", "tool_call", "tool_status", "usage", "text", "text", "usage", "usage", "done",
     ]);
+    // Each step reports the totals so far; the last one before done is final.
+    expect(events.filter((e) => e.event === "usage").map((e) => e.data.input_tokens)).toEqual([12, 24, 24]);
     expect(events[3].data).toMatchObject({ name: "get_inventory", args: {} });
     expect(events.at(-1)!.data.answer).toBe("You have &ea diamond sword&r.");
     expect(events.at(-2)!.data).toMatchObject({ input_tokens: 24, output_tokens: 14, cost: 0.001 });
@@ -127,8 +129,8 @@ describe("POST /api/v2/chat", () => {
     const { model } = scripted([[...text('{"is_sequence":false,"commands":["/give @s diamond_sword"],"error":null}'), finish()]]);
     const base = start(testDeps(model));
     const events = await readSse(await chat(base, { mode: "askx", message: "give me a sword" }));
-    expect(events.map((e) => e.event)).toEqual(["start", "commands", "usage", "done"]);
-    expect(events[1].data).toEqual({ is_sequence: false, commands: ["give @s diamond_sword"] });
+    expect(events.map((e) => e.event)).toEqual(["start", "usage", "commands", "usage", "done"]);
+    expect(events[2].data).toEqual({ is_sequence: false, commands: ["give @s diamond_sword"] });
   });
 
   test("an askx refusal arrives as an error event", async () => {

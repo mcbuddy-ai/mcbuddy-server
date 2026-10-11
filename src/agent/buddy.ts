@@ -84,6 +84,8 @@ export const runBuddy = async (context: RunContext, deps: BuddyDeps, options: Ru
 
     let text = "";
     let cost = 0;
+    // Per-step usage, summed, so the plugin's counter moves while the agent works.
+    const sofar: Usage = { input_tokens: 0, output_tokens: 0, reasoning_tokens: 0, cost: 0 };
     for await (const chunk of stream.fullStream) {
       const payload = chunk.payload ?? {};
       switch (chunk.type) {
@@ -97,9 +99,16 @@ export const runBuddy = async (context: RunContext, deps: BuddyDeps, options: Ru
             if (context.mode === "ask") emit({ event: "text", data: { delta: payload.text } });
           }
           break;
-        case "step-finish":
+        case "step-finish": {
           cost += costOf((payload.metadata as { providerMetadata?: unknown } | undefined)?.providerMetadata);
+          const step = (payload.output as { usage?: { inputTokens?: number; outputTokens?: number; reasoningTokens?: number } } | undefined)?.usage;
+          sofar.input_tokens += step?.inputTokens ?? 0;
+          sofar.output_tokens += step?.outputTokens ?? 0;
+          sofar.reasoning_tokens += step?.reasoningTokens ?? 0;
+          sofar.cost = Math.round(cost * 1_000_000) / 1_000_000;
+          emit({ event: "usage", data: { ...sofar } });
           break;
+        }
         case "error":
           throw payload.error ?? new Error("The model stream failed");
       }
