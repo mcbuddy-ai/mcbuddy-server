@@ -65,9 +65,8 @@ Players and bots can send `X-OpenRouter-Token: sk-or-...` to use their own OpenR
 | `MAX_ACTIVE_RUNS` | Streaming questions at once | `200` |
 | `SSE_PING_MS` | Ping interval that keeps proxies from closing the stream | `15000` |
 | `MAX_MESSAGES`, `CHAT_TTL_SECONDS` | Chat history length and lifetime in Redis | `25`, `3600` |
-| `SYSTEM_MESSAGE`, `SYSTEM_MESSAGE_TG`, `ASKX_SYSTEM_MESSAGE`, `SYSTEM_MESSAGE_WITH_CONTEXT` | Optional. v1 prompts in base64; when set, they replace the built-in ones | unset |
 
-Prompts live in [src/prompts](src/prompts) (`minecraft-ask.md`, `minecraft-askx.md`, `telegram.md`) and ship inside the build. Each run appends who asks, their language, the server version, and the available tools. Remove old `SYSTEM_MESSAGE*` variables to switch to the new prompts.
+Prompts live in [src/prompts](src/prompts) (`minecraft-ask.md`, `minecraft-askx.md`, `telegram.md`) and ship inside the build. Each run appends who asks, their language, the server version, and the available tools. Remove old `SYSTEM_MESSAGE*` variables to switch to the new prompts. The old `SYSTEM_MESSAGE*` variables are no longer read. A `perplexity/…` main model can’t call tools, so the server moves it to search and answers with the default model.
 
 ## Deployment
 

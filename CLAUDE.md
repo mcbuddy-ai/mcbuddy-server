@@ -13,10 +13,10 @@ The backend of MCBuddy, an AI buddy for Minecraft players and a Telegram bot. A 
 |---|---|
 | `src/application/` | Entrypoint, routes, shared dependencies |
 | `src/features/chat/` | `POST /api/v2/chat`: the SSE stream and the bridge that hands client tools to the plugin and waits for `POST /api/v2/chat/{run}/tools/{call}` |
-| `src/features/ask`, `src/features/askx` | v1 endpoints. The Telegram bot (mcbuddy-ai/mcbuddy-bot) and older plugins use them; keep their request and response shapes |
+| `src/features/ask`, `src/features/askx` | v1 endpoints for plugins before 2.0 (the Telegram bot mcbuddy-ai/mcbuddy-bot is archived); keep their request and response shapes |
 | `src/features/tools/` | Client tool definitions (run by the plugin, only about the asking player) and `search_web` (runs here, through an OpenRouter search model) |
 | `src/agent/` | The agent runner, prompt assembly, askx command validation |
-| `src/prompts/*.md` | The system prompts; bundled into the build. `SYSTEM_MESSAGE*` env variables override them, so production must not set those |
+| `src/prompts/*.md` | The system prompts, bundled into the build; the only place to change them |
 | `src/infrastructure/` | Redis chat history (same keys as v1), MongoDB, the OpenRouter provider |
 | `docs/protocol-v2.md` | The contract with the plugin. Change it only additively, and change the plugin (mcbuddy-ai/mcbuddy-spigot) to match |
 

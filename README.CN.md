@@ -35,7 +35,7 @@ MCBuddy Server 是一个基于 OpenRouter 的 [Mastra](https://mastra.ai) 智能
 
 ## 环境变量
 
-主要变量：`OPENROUTER_API_KEY`（必填）、`OPENROUTER_API_MODEL`（必须支持工具调用，默认 `openai/gpt-5-mini`）、`SEARCH_MODEL`（联网搜索模型，默认 `perplexity/sonar`）、`OPENROUTER_API_CTX`、`OPENROUTER_REASONING_EFFORT`、`TOOL_TIMEOUT_MS`（默认 15000）、`MAX_AGENT_STEPS`（默认 8）、`MAX_ACTIVE_RUNS`、`SSE_PING_MS`、`MAX_MESSAGES`、`CHAT_TTL_SECONDS`。旧的 base64 提示词变量 `SYSTEM_MESSAGE*` 为可选项：如果设置，会覆盖内置提示词。完整说明见俄文 README。
+主要变量：`OPENROUTER_API_KEY`（必填）、`OPENROUTER_API_MODEL`（必须支持工具调用，默认 `openai/gpt-5-mini`）、`SEARCH_MODEL`（联网搜索模型，默认 `perplexity/sonar`）、`OPENROUTER_API_CTX`、`OPENROUTER_REASONING_EFFORT`、`TOOL_TIMEOUT_MS`（默认 15000）、`MAX_AGENT_STEPS`（默认 8）、`MAX_ACTIVE_RUNS`、`SSE_PING_MS`、`MAX_MESSAGES`、`CHAT_TTL_SECONDS`。旧的 `SYSTEM_MESSAGE*` 变量已不再读取，提示词只在 `src/prompts` 中修改。如果主模型设为 `perplexity/…`（不支持工具调用），服务器会自动把它用于搜索，并用默认模型回答。完整说明见俄文 README。
 
 提示词位于 [src/prompts](src/prompts)，随构建一起打包。
 
