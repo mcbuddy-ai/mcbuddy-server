@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { commandsFromText, validateCommands } from "../src/agent/commands";
 import { parseChatRequest } from "../src/features/chat/chat.types";
+import { GAME_TOOLS, OPERATOR_TOOLS } from "../src/features/tools/game.tools";
 import { ApiFailure } from "../src/shared/types/errors";
 
 const base = { message: "how do I find diamonds?", user_id: "5627dd98-e6be-3c21-b8a8-e92344183641" };
@@ -17,6 +18,12 @@ describe("v2 request validation", () => {
     const parsed = parseChatRequest({ ...base, tools: ["get_world", "get_world", "future_tool"], extra: 1 }, "sk-or-x");
     expect(parsed.ok && parsed.context.tools).toEqual(["get_world", "future_tool"]);
     expect(parsed.ok && parsed.context.token).toBe("sk-or-x");
+  });
+
+  test("an operator's plugin may offer every tool the backend knows", () => {
+    const tools = [...GAME_TOOLS, ...OPERATOR_TOOLS];
+    const parsed = parseChatRequest({ ...base, player: { name: "Steve", op: true }, tools }, undefined);
+    expect(parsed.ok && parsed.context.tools).toEqual(tools);
   });
 
   test("errors use the v1 codes", () => {

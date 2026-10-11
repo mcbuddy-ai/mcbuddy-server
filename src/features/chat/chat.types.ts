@@ -13,7 +13,7 @@ export const chatRequestSchema = z.object({
   locale: text(16),
   player: z.object({ name: z.string().min(1).max(32), uuid: text(36), op: z.boolean().optional() }).optional(),
   server: z.object({ software: text(64), version: text(64), plugin_version: text(64) }).optional(),
-  tools: z.array(z.string().max(64)).max(32).default([]),
+  tools: z.array(z.string().max(64)).max(256).default([]),
 });
 
 export const toolAnswerSchema = z.union([
