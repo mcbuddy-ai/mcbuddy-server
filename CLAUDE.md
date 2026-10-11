@@ -31,6 +31,10 @@ The build bundles `src/features/tools/calc.worker.ts` next to the entrypoint; `e
 - A changed `.version` also creates a GitHub release. Bump it only when the owner asks.
 - Production needs a tool-capable model in `OPENROUTER_API_MODEL` (not `perplexity/sonar*`; that one is `SEARCH_MODEL`).
 
+## Moonlands
+
+The owner's server, Moonlands, runs its own instance of this backend, built from a release tag. When the owner asks to put a change “on the server”, release it here, then follow “Shipping a plugin or backend update” in `~/c/personal/minecraft/CLAUDE.md` (MairwunNx/minecraft).
+
 ## Running and testing
 
 - `bun test` and `bun run typecheck` must pass; tests use a scripted model and never call the network.
