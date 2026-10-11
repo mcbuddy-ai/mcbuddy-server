@@ -5,9 +5,10 @@ import { handleAsk } from "../src/features/ask/ask.controller";
 import { handleAskX } from "../src/features/askx/askx.controller";
 import { handleChat, handleToolResult } from "../src/features/chat/chat.controller";
 import { handleHealth } from "../src/features/health/health.controller";
+import { handleMemories, handleMemory, handleSession } from "../src/features/users/users.controller";
 import { finish, reasoning, readSse, scripted, testDeps, text, toolCall } from "./helpers";
 
-const handlers = { handleAsk, handleAskX, handleChat, handleToolResult, handleHealth };
+const handlers = { handleAsk, handleAskX, handleChat, handleToolResult, handleHealth, handleSession, handleMemories, handleMemory };
 let server: Server | undefined;
 
 afterEach(() => server?.stop(true));
@@ -255,5 +256,47 @@ describe("v1 compatibility", () => {
     expect(((await (await post({ action: "x", platform: "telegram" })).json()) as any).code).toBe("PLATFORM_NOT_SUPPORTED");
     expect(((await (await post({})).json()) as any).code).toBe("ACTION_REQUIRED");
     expect(((await (await post({ action: "x".repeat(501) })).json()) as any).code).toBe("ACTION_TOO_LONG");
+  });
+});
+
+describe("session and memory endpoints", () => {
+  test("/ask new clears the session but keeps memories", async () => {
+    const { model, prompts } = scripted([[...text("Ender pearls."), finish()], [...text("Hi again."), finish()]]);
+    const deps = testDeps(model);
+    const base = start(deps);
+    await deps.memories.add("player-1", "base at 120 64 -300");
+    await readSse(await chat(base, { message: "what do I need for the end?" }));
+    const cleared = await fetch(`${base}/api/v2/users/player-1/session`, { method: "DELETE" });
+    expect(await cleared.json()).toEqual({ cleared: true });
+    await readSse(await chat(base, { message: "hi" }));
+    expect(JSON.stringify(prompts[1])).not.toContain("Ender pearls.");
+    expect(JSON.stringify(prompts[1])).toContain("base at 120 64 -300");
+  });
+
+  test("memories can be listed and deleted one by one or all at once", async () => {
+    const deps = testDeps(scripted([[finish()]]).model);
+    const base = start(deps);
+    const first = await deps.memories.add("player-1", "base at 120 64 -300");
+    await deps.memories.add("player-1", "wants an iron farm");
+    if (first === "full") throw new Error("unexpected");
+    const url = `${base}/api/v2/users/player-1/memories`;
+    const listed = (await (await fetch(url)).json()) as any;
+    expect(listed.memories.map((m: any) => m.text)).toEqual(["base at 120 64 -300", "wants an iron farm"]);
+    expect(listed.memories[0]).toMatchObject({ id: first.id, created_at: expect.any(String) });
+
+    expect(await (await fetch(`${url}/${first.id}`, { method: "DELETE" })).json()).toEqual({ deleted: 1 });
+    const again = await fetch(`${url}/${first.id}`, { method: "DELETE" });
+    expect(again.status).toBe(404);
+    expect(((await again.json()) as any).error.code).toBe("MEMORY_NOT_FOUND");
+    expect(await (await fetch(url, { method: "DELETE" })).json()).toEqual({ deleted: 1 });
+    expect(await (await fetch(url)).json()).toEqual({ memories: [] });
+  });
+
+  test("odd user ids and methods are refused", async () => {
+    const base = start(testDeps(scripted([[finish()]]).model));
+    expect((await fetch(`${base}/api/v2/users/${encodeURIComponent("a:b")}/memories`)).status).toBe(400);
+    expect((await fetch(`${base}/api/v2/users/${"x".repeat(65)}/session`, { method: "DELETE" })).status).toBe(400);
+    expect((await fetch(`${base}/api/v2/users/player-1/session`)).status).toBe(405);
+    expect((await fetch(`${base}/api/v2/users/player-1/memories`, { method: "POST" })).status).toBe(405);
   });
 });

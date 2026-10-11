@@ -3,6 +3,7 @@ import type { handleAsk } from "../features/ask/ask.controller";
 import type { handleAskX } from "../features/askx/askx.controller";
 import type { handleChat, handleToolResult } from "../features/chat/chat.controller";
 import type { handleHealth } from "../features/health/health.controller";
+import type { handleMemories, handleMemory, handleSession } from "../features/users/users.controller";
 
 interface Handlers {
   handleAsk: typeof handleAsk;
@@ -10,6 +11,9 @@ interface Handlers {
   handleChat: typeof handleChat;
   handleToolResult: typeof handleToolResult;
   handleHealth: typeof handleHealth;
+  handleSession: typeof handleSession;
+  handleMemories: typeof handleMemories;
+  handleMemory: typeof handleMemory;
 }
 
 /** The HTTP routes, built from injected services so tests can serve them with fakes. */
@@ -19,4 +23,7 @@ export const routes = (deps: BuddyDeps, h: Handlers) => ({
   "/api/askx": h.handleAskX(deps),
   "/api/v2/chat": h.handleChat(deps),
   "/api/v2/chat/:runId/tools/:callId": h.handleToolResult(deps),
+  "/api/v2/users/:userId/session": h.handleSession(deps),
+  "/api/v2/users/:userId/memories": h.handleMemories(deps),
+  "/api/v2/users/:userId/memories/:memoryId": h.handleMemory(deps),
 });
