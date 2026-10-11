@@ -1,8 +1,11 @@
-import { fail } from "../../../shared/lib/error";
-
-export const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || fail("OPENROUTER_API_KEY is not set")();
-export const OPENROUTER_BASE_URL = process.env.OPENROUTER_API_URL || fail("OPENROUTER_API_URL is not set")();
-export const OPENROUTER_API_MODEL = process.env.OPENROUTER_API_MODEL || fail("OPENROUTER_API_MODEL is not set")();
-export const OPENROUTER_API_CTX = process.env.OPENROUTER_API_CTX || fail("OPENROUTER_API_CTX is not set")();
-export const API_URL = process.env.API_URL || fail("API_URL is not set")();
-export const API_NAME = process.env.API_NAME || fail("API_NAME is not set")();
+// Read lazily: tests and tools import these modules without a real key.
+export const openrouterEnv = () => ({
+  apiKey: process.env.OPENROUTER_API_KEY,
+  baseURL: process.env.OPENROUTER_API_URL || "https://openrouter.ai/api/v1",
+  model: process.env.OPENROUTER_API_MODEL || "openai/gpt-5-mini",
+  searchModel: process.env.SEARCH_MODEL || "perplexity/sonar",
+  searchContext: process.env.OPENROUTER_API_CTX || "medium",
+  reasoningEffort: process.env.OPENROUTER_REASONING_EFFORT as "low" | "medium" | "high" | undefined,
+  apiUrl: process.env.API_URL || "https://mcbuddy.ru",
+  apiName: process.env.API_NAME || "mcbuddy",
+});
