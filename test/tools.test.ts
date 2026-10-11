@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { GAME_TOOLS, OPERATOR_TOOLS, offeredTools } from "../src/features/tools/game.tools";
+import { GAME_TOOLS, type GameToolName, OPERATOR_TOOLS, offeredTools } from "../src/features/tools/game.tools";
 
 describe("offered game tools", () => {
   test("operators get the operator tools the plugin offers", () => {
@@ -18,5 +18,15 @@ describe("offered game tools", () => {
     expect(GAME_TOOLS.filter((name) => OPERATOR_TOOLS.includes(name))).toEqual([]);
     expect(GAME_TOOLS).toEqual(expect.arrayContaining(["point_to", "set_reminder", "get_reminders", "cancel_reminder"]));
     expect(OPERATOR_TOOLS).toContain("give_item");
+  });
+
+  test("the 2.2 tools are for everyone", () => {
+    const added: GameToolName[] = [
+      "add_note", "find_notes", "delete_note", "get_container", "scan_nearby_containers", "get_block_info",
+      "get_item_durability", "get_xp_info", "get_food_options", "ping_me", "get_map_info", "get_enchant_options",
+      "get_mob_info", "get_light_spawn_check", "get_brewing_items", "scan_farm",
+    ];
+    expect(GAME_TOOLS).toEqual(expect.arrayContaining(added));
+    expect(offeredTools(added, false)).toEqual(added);
   });
 });

@@ -69,6 +69,7 @@ const definitions = {
       y: z.number().int(),
       z: z.number().int(),
       label: z.string().max(32).optional().describe("A short name for the spot, like base"),
+      seconds: z.number().int().min(1).max(30).optional().describe("How long the trail shows, 1–30 s"),
     }),
   },
   sort_inventory: {
@@ -89,6 +90,93 @@ const definitions = {
     description: "Cancels one of the asking player's reminders by id (from get_reminders), or all of them with all: true.",
     // One flat object, as for teleport: tool parameters can't be a union.
     input: z.object({ id: z.string().min(1).max(32).optional(), all: z.boolean().optional() }),
+  },
+  add_note: {
+    description:
+      "Writes a note in the asking player's notebook, tied to a place: by default where they stand (here), or the given x, y, z and dimension. For things on this server, like a villager that sells arrows or an iron farm.",
+    input: z.object({
+      text: z.string().min(1).max(200),
+      here: z.boolean().optional().describe("Pin to where the player stands; the default when no coordinates are given"),
+      x: z.number().int().optional(),
+      y: z.number().int().optional(),
+      z: z.number().int().optional(),
+      dimension: z.string().max(64).optional(),
+    }),
+  },
+  find_notes: {
+    description:
+      "The asking player's notebook: notes with id, text, coordinates, dimension, and distance and direction when in their dimension. Without query it lists them; near sorts by distance. Match the query by meaning yourself, since the plugin only filters by words.",
+    input: z.object({
+      query: z.string().max(100).optional(),
+      near: z.boolean().optional(),
+      limit: z.number().int().min(1).max(50).optional(),
+    }),
+  },
+  delete_note: {
+    description: "Deletes a note from the asking player's notebook by id (from find_notes).",
+    input: z.object({ id: z.string().min(1).max(32) }),
+  },
+  get_container: {
+    description: "What is inside the chest, barrel, shulker box, or other container the asking player is looking at.",
+    input: z.object({}),
+  },
+  scan_nearby_containers: {
+    description:
+      "Containers around the asking player with their contents and offsets, or only those holding an item when item is given. Answers \"where did I put my redstone?\"",
+    input: z.object({
+      item: z.string().max(64).optional().describe("Item id to look for, such as redstone"),
+      radius: z.number().int().min(1).max(12).optional(),
+    }),
+  },
+  get_block_info: {
+    description:
+      "The block the asking player is looking at: hardness, the right tool, what it drops with the item in hand, and the growth stage for crops.",
+    input: z.object({}),
+  },
+  get_item_durability: {
+    description: "Durability left on the asking player's hotbar items and armor, and which ones need repair soon.",
+    input: z.object({}),
+  },
+  get_xp_info: {
+    description:
+      "The asking player's level and XP, with the points needed for the next level and, with target_level, for that level. Use with exact_calculations for repairs and enchanting.",
+    input: z.object({ target_level: z.number().int().min(0).max(100).optional() }),
+  },
+  get_food_options: {
+    description: "Food in the asking player's inventory with hunger and saturation each restores, and their current hunger and saturation.",
+    input: z.object({}),
+  },
+  ping_me: {
+    description: "Plays a quiet sound and shows particles over the asking player so they can find themselves. Only when asked.",
+    input: z.object({}),
+  },
+  get_map_info: {
+    description: "The map in the asking player's hand: center, scale, dimension, whether it is locked, and the banners and markers on it.",
+    input: z.object({}),
+  },
+  get_enchant_options: {
+    description:
+      "The enchanting table the asking player is looking at or standing by: bookshelves that power it, and what it could offer for the item in hand.",
+    input: z.object({}),
+  },
+  get_mob_info: {
+    description:
+      "The mob the asking player is looking at: health, armor, attack damage, and the damage of the player's held weapon, for working out how many hits it takes.",
+    input: z.object({}),
+  },
+  get_light_spawn_check: {
+    description:
+      "Spots around the asking player where hostile mobs can spawn (block light 0 on a solid top), with offsets and counts; tells where to place torches.",
+    input: z.object({ radius: z.number().int().min(1).max(16).optional() }),
+  },
+  get_brewing_items: {
+    description: "Brewing ingredients, potions, and bottles in the asking player's inventory, and whether a brewing stand and blaze powder are at hand.",
+    input: z.object({}),
+  },
+  scan_farm: {
+    description:
+      "The farm around the asking player: crops by type and growth, water, animals by type, spawning platforms and light. Raw facts for estimating a farm's rate.",
+    input: z.object({ radius: z.number().int().min(1).max(16).optional() }),
   },
 } as const;
 
