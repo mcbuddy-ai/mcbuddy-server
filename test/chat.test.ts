@@ -73,7 +73,7 @@ describe("POST /api/v2/chat", () => {
     expect(system).toContain("Player: Steve");
     expect(system).toContain("Paper 26.3");
     expect(system).toContain("Game tools you can call: get_world");
-    expect(system).toContain("Locale: en_us");
+    expect(system).toContain("Game locale (a fallback for when the message has no clear language): en_us");
   });
 
   test("operator tools reach the model only for operators", async () => {

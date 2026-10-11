@@ -20,7 +20,7 @@ export interface Recall {
 
 /** The system prompt for one run: the base prompt plus what we know about this conversation. */
 export const systemPrompt = (context: RunContext, recall: Recall = {}): string => {
-  const lines = [`- Today: ${new Date().toISOString().slice(0, 10)}`, `- Locale: ${context.locale ?? "ru_ru"}`];
+  const lines = [`- Today: ${new Date().toISOString().slice(0, 10)}`, `- Game locale (a fallback for when the message has no clear language): ${context.locale ?? "ru_ru"}`];
   if (context.player) lines.push(`- Player: ${context.player.name} (operator: ${yesNo(context.player.op)})`);
   if (context.server) {
     lines.push(`- Server: ${context.server.software ?? "unknown"} ${context.server.version ?? ""}`.trimEnd());
