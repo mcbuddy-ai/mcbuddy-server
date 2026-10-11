@@ -1,6 +1,6 @@
 {
   "name": "mcbuddy-server",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "🛠️⚡ Бэкенд для AI-ассистента MCBuddy — агент на Mastra с инструментами игры и веб-поиском, стриминг ответов в Minecraft, совместимый API для Telegram. 🌟",
   "main": "src/index.ts",
   "scripts": {
