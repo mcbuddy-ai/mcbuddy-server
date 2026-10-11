@@ -1,0 +1,203 @@
+import { afterEach, describe, expect, test } from "bun:test";
+import { serve, type Server } from "bun";
+import { routes } from "../src/application/routes";
+import { handleAsk } from "../src/features/ask/ask.controller";
+import { handleAskX } from "../src/features/askx/askx.controller";
+import { handleChat, handleToolResult } from "../src/features/chat/chat.controller";
+import { handleHealth } from "../src/features/health/health.controller";
+import { finish, reasoning, readSse, scripted, testDeps, text, toolCall } from "./helpers";
+
+const handlers = { handleAsk, handleAskX, handleChat, handleToolResult, handleHealth };
+let server: Server | undefined;
+
+afterEach(() => server?.stop(true));
+
+const start = (deps: ReturnType<typeof testDeps>) => {
+  server = serve({ port: 0, routes: routes(deps, handlers) });
+  return `http://localhost:${server.port}`;
+};
+
+const chat = (base: string, body: object, headers: Record<string, string> = {}) =>
+  fetch(`${base}/api/v2/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream", ...headers },
+    body: JSON.stringify({ user_id: "player-1", player: { name: "Steve" }, ...body }),
+  });
+
+const answerTools = (base: string, results: Record<string, unknown>) => {
+  let runId = "";
+  return async (event: { event: string; data: any }) => {
+    if (event.event === "start") runId = event.data.run_id;
+    if (event.event === "tool_call") {
+      const response = await fetch(`${base}/api/v2/chat/${runId}/tools/${event.data.call_id}`, {
+        method: "POST",
+        body: JSON.stringify({ ok: true, result: results[event.data.name] ?? {} }),
+      });
+      expect(response.status).toBe(200);
+    }
+  };
+};
+
+describe("POST /api/v2/chat", () => {
+  test("streams reasoning, a client tool round trip, the answer, usage, and done", async () => {
+    const { model, prompts } = scripted([
+      [...reasoning("Let me look at the inventory"), toolCall("get_inventory", {}), finish("tool-calls")],
+      [...text("You have ", "&ea diamond sword&r."), finish()],
+    ]);
+    const deps = testDeps(model);
+    const base = start(deps);
+    const response = await chat(base, { message: "what do I have?", tools: ["get_inventory", "get_world"] });
+    expect(response.status).toBe(200);
+    const events = await readSse(response, answerTools(base, { get_inventory: { main: [{ id: "diamond_sword", count: 1 }] } }));
+
+    expect(events.map((e) => e.event)).toEqual([
+      "start", "reasoning", "tool_status", "tool_call", "tool_status", "text", "text", "usage", "done",
+    ]);
+    expect(events[3].data).toMatchObject({ name: "get_inventory", args: {} });
+    expect(events.at(-1)!.data.answer).toBe("You have &ea diamond sword&r.");
+    expect(events.at(-2)!.data).toMatchObject({ input_tokens: 24, output_tokens: 14, cost: 0.001 });
+    // The second model call saw the plugin's result.
+    expect(JSON.stringify(prompts[1])).toContain("diamond_sword");
+    // Only the tools the plugin offered, plus web search, reach the model.
+    expect(deps.bridge.active).toBe(0);
+  });
+
+  test("the system prompt describes the player and the offered tools", async () => {
+    const { model, prompts } = scripted([[...text("hi"), finish()]]);
+    const base = start(testDeps(model));
+    await readSse(await chat(base, { message: "hi", locale: "en_us", server: { software: "Paper", version: "26.3" }, tools: ["get_world"] }));
+    const system = JSON.stringify(prompts[0]);
+    expect(system).toContain("Player: Steve");
+    expect(system).toContain("Paper 26.3");
+    expect(system).toContain("Game tools you can call: get_world");
+    expect(system).toContain("Locale: en_us");
+  });
+
+  test("a tool the plugin never answers times out and the run still finishes", async () => {
+    const { model, prompts } = scripted([[toolCall("get_target", {}), finish("tool-calls")], [...text("I can't see it."), finish()]]);
+    const base = start(testDeps(model, { toolTimeoutMs: 100 }));
+    const events = await readSse(await chat(base, { message: "what is this?", tools: ["get_target"] }));
+    expect(events.find((e) => e.event === "tool_status" && e.data.state === "failed")).toBeDefined();
+    expect(events.at(-1)!.event).toBe("done");
+    expect(JSON.stringify(prompts[1])).toContain("TOOL_TIMEOUT");
+  });
+
+  test("tool results for unknown runs, and repeated ones, are refused", async () => {
+    // A second tool call keeps the run open while we post a duplicate for the first one.
+    const { model } = scripted([
+      [toolCall("get_world", {}, "c1"), finish("tool-calls")],
+      [toolCall("get_server", {}, "c2"), finish("tool-calls")],
+      [...text("ok"), finish()],
+    ]);
+    const base = start(testDeps(model));
+    let runId = "";
+    let first = "";
+    await readSse(await chat(base, { message: "time?", tools: ["get_world", "get_server"] }), async (event) => {
+      if (event.event === "start") runId = event.data.run_id;
+      if (event.event !== "tool_call") return;
+      const post = (callId: string, body: object) =>
+        fetch(`${base}/api/v2/chat/${runId}/tools/${callId}`, { method: "POST", body: JSON.stringify(body) });
+      if (event.data.name === "get_world") {
+        first = event.data.call_id;
+        expect((await post(first, { result: {} })).status).toBe(400);
+        expect((await post(first, { ok: true, result: { time: 1000 } })).status).toBe(200);
+      } else {
+        expect((await post(first, { ok: true, result: {} })).status).toBe(409);
+        expect((await post(event.data.call_id, { ok: true, result: { version: "26.3" } })).status).toBe(200);
+      }
+    });
+    const late = await fetch(`${base}/api/v2/chat/${runId}/tools/${first}`, { method: "POST", body: JSON.stringify({ ok: true, result: 1 }) });
+    expect(late.status).toBe(404);
+    expect(((await late.json()) as any).error.code).toBe("RUN_NOT_FOUND");
+  });
+
+  test("web search runs on the backend and shows up as a server tool", async () => {
+    const { model } = scripted([[toolCall("search_web", { query: "26.3 changes" }), finish("tool-calls")], [...text("Copper golems."), finish()]]);
+    const search = scripted([[...text("26.3 adds copper golems."), finish()]]);
+    const deps = testDeps(model, { search: search.model });
+    const base = start(deps);
+    const events = await readSse(await chat(base, { message: "what's new?" }));
+    const statuses = events.filter((e) => e.event === "tool_status").map((e) => [e.data.name, e.data.kind, e.data.state]);
+    expect(statuses).toEqual([["search_web", "server", "started"], ["search_web", "server", "finished"]]);
+    expect(events.some((e) => e.event === "tool_call")).toBe(false);
+    expect(deps.searchCalls).toBe(1);
+  });
+
+  test("askx returns validated commands instead of text", async () => {
+    const { model } = scripted([[...text('{"is_sequence":false,"commands":["/give @s diamond_sword"]}'), finish()]]);
+    const base = start(testDeps(model));
+    const events = await readSse(await chat(base, { mode: "askx", message: "give me a sword" }));
+    expect(events.map((e) => e.event)).toEqual(["start", "commands", "usage", "done"]);
+    expect(events[1].data).toEqual({ is_sequence: false, commands: ["give @s diamond_sword"] });
+  });
+
+  test("an askx refusal arrives as an error event", async () => {
+    const { model } = scripted([[...text('{"is_sequence":false,"commands":[],"error":"Не буду банить"}'), finish()]]);
+    const base = start(testDeps(model));
+    const events = await readSse(await chat(base, { mode: "askx", message: "ban everyone" }));
+    expect(events.at(-1)).toEqual({ event: "error", data: { code: "AI_ERROR", message: "AI returned an error: Не буду банить" } });
+  });
+
+  test("a model failure ends the stream with an error event", async () => {
+    const { model } = scripted([[{ type: "error", error: new Error("upstream exploded") }]]);
+    const base = start(testDeps(model));
+    const events = await readSse(await chat(base, { message: "hi" }));
+    expect(events.at(-1)!.event).toBe("error");
+    expect(events.at(-1)!.data.code).toBe("AI_REQUEST_FAILED");
+  });
+
+  test("bad requests are plain JSON errors before any stream starts", async () => {
+    const base = start(testDeps(scripted([[finish()]]).model));
+    const bad = await chat(base, { message: "" });
+    expect(bad.status).toBe(400);
+    expect(((await bad.json()) as any).error.code).toBe("EMPTY_QUESTION");
+    expect((await fetch(`${base}/api/v2/chat`, { method: "POST", body: "{" })).status).toBe(400);
+    expect((await fetch(`${base}/api/v2/chat`)).status).toBe(405);
+  });
+
+  test("history carries over between questions", async () => {
+    const { model, prompts } = scripted([[...text("Ender pearls."), finish()], [...text("Twelve."), finish()]]);
+    const base = start(testDeps(model));
+    await readSse(await chat(base, { message: "what do I need for the end?" }));
+    await readSse(await chat(base, { message: "how many?" }));
+    expect(JSON.stringify(prompts[1])).toContain("Ender pearls.");
+  });
+});
+
+describe("v1 compatibility", () => {
+  test("/api/ask answers in one JSON piece", async () => {
+    const { model, prompts } = scripted([[...text("Use a fortune pickaxe."), finish()]]);
+    const base = start(testDeps(model));
+    const response = await fetch(`${base}/api/ask`, {
+      method: "POST",
+      body: JSON.stringify({ question: "diamonds?", platform: "telegram", user_id: "42" }),
+    });
+    const body = await response.json();
+    expect(body).toMatchObject({ answer: "Use a fortune pickaxe.", status: "success", platform: "telegram", user_id: "42" });
+    // Telegram gets its own prompt, with Markdown allowed.
+    expect(JSON.stringify(prompts[0])).toContain("Telegram Markdown is fine");
+  });
+
+  test("/api/ask keeps its validation errors", async () => {
+    const base = start(testDeps(scripted([[finish()]]).model));
+    const post = (body: object) => fetch(`${base}/api/ask`, { method: "POST", body: JSON.stringify(body) });
+    expect(((await (await post({})).json()) as any).code).toBe("QUESTION_REQUIRED");
+    expect(((await (await post({ question: "x".repeat(1001) })).json()) as any).code).toBe("QUESTION_TOO_LONG");
+    expect((await fetch(`${base}/api/ask`)).status).toBe(405);
+  });
+
+  test("/api/askx returns isSequence and commands", async () => {
+    const { model } = scripted([[...text('{"is_sequence":true,"commands":["time set day","weather clear"]}'), finish()]]);
+    const base = start(testDeps(model));
+    const response = await fetch(`${base}/api/askx`, { method: "POST", body: JSON.stringify({ action: "make it sunny day" }) });
+    expect((await response.json()) as any).toMatchObject({ isSequence: true, commands: ["time set day", "weather clear"], status: "success" });
+  });
+
+  test("/api/askx keeps its errors", async () => {
+    const base = start(testDeps(scripted([[finish()]]).model));
+    const post = (body: object) => fetch(`${base}/api/askx`, { method: "POST", body: JSON.stringify(body) });
+    expect(((await (await post({ action: "x", platform: "telegram" })).json()) as any).code).toBe("PLATFORM_NOT_SUPPORTED");
+    expect(((await (await post({})).json()) as any).code).toBe("ACTION_REQUIRED");
+    expect(((await (await post({ action: "x".repeat(501) })).json()) as any).code).toBe("ACTION_TOO_LONG");
+  });
+});

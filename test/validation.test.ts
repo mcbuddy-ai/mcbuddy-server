@@ -1,0 +1,68 @@
+import { describe, expect, test } from "bun:test";
+import { commandsFromText, validateCommands } from "../src/agent/commands";
+import { parseChatRequest } from "../src/features/chat/chat.types";
+import { ApiFailure } from "../src/shared/types/errors";
+
+const base = { message: "how do I find diamonds?", user_id: "5627dd98-e6be-3c21-b8a8-e92344183641" };
+
+describe("v2 request validation", () => {
+  test("a minimal request gets defaults", () => {
+    const parsed = parseChatRequest(base, undefined);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.context).toMatchObject({ mode: "ask", platform: "minecraft", tools: [], message: base.message });
+  });
+
+  test("tools are deduplicated and extra fields are tolerated", () => {
+    const parsed = parseChatRequest({ ...base, tools: ["get_world", "get_world", "future_tool"], extra: 1 }, "sk-or-x");
+    expect(parsed.ok && parsed.context.tools).toEqual(["get_world", "future_tool"]);
+    expect(parsed.ok && parsed.context.token).toBe("sk-or-x");
+  });
+
+  test("errors use the v1 codes", () => {
+    const code = (body: unknown) => {
+      const parsed = parseChatRequest(body, undefined);
+      return parsed.ok ? "ok" : parsed.error.code;
+    };
+    expect(code({ ...base, message: "   " })).toBe("EMPTY_QUESTION");
+    expect(code({ ...base, mode: "askx", message: " " })).toBe("EMPTY_ACTION");
+    expect(code({ ...base, message: "x".repeat(1001) })).toBe("QUESTION_TOO_LONG");
+    expect(code({ ...base, mode: "askx", message: "x".repeat(501) })).toBe("ACTION_TOO_LONG");
+    expect(code({ message: "hi" })).toBe("BAD_REQUEST");
+    expect(code({ ...base, mode: "chat" })).toBe("BAD_REQUEST");
+    expect(code({ ...base, platform: "telegram" })).toBe("BAD_REQUEST");
+    expect(code(null)).toBe("BAD_REQUEST");
+  });
+});
+
+describe("askx commands", () => {
+  const codeOf = (raw: unknown) => {
+    try {
+      validateCommands(raw);
+      return "ok";
+    } catch (e) {
+      return (e as ApiFailure).code;
+    }
+  };
+
+  test("valid commands lose their leading slash", () => {
+    expect(validateCommands({ is_sequence: true, commands: ["/give @s diamond_sword", " time set day "] })).toEqual({
+      is_sequence: true,
+      commands: ["give @s diamond_sword", "time set day"],
+    });
+  });
+
+  test("refusals, admin commands, and oversize lists are errors", () => {
+    expect(codeOf({ is_sequence: false, commands: [], error: "Не могу" })).toBe("AI_ERROR");
+    expect(codeOf({ is_sequence: false, commands: ["op Steve"] })).toBe("AI_ERROR");
+    expect(codeOf({ is_sequence: false, commands: ["minecraft:stop"] })).toBe("AI_ERROR");
+    expect(codeOf({ is_sequence: false, commands: Array(13).fill("say hi") })).toBe("TOO_MANY_COMMANDS");
+    expect(codeOf({ commands: "give" })).toBe("INVALID_FORMAT");
+    expect(codeOf({ is_sequence: false, commands: ["say a\nop me"] })).toBe("INVALID_FORMAT");
+  });
+
+  test("JSON in text, v1 camelCase included, is understood", () => {
+    expect(commandsFromText('```json\n{"isSequence": true, "commands": ["say hi"]}\n```')).toMatchObject({ is_sequence: true });
+    expect(commandsFromText("not json")).toBeUndefined();
+  });
+});
