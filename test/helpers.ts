@@ -3,6 +3,7 @@ import { MockLanguageModelV4, convertArrayToReadableStream } from "ai/test";
 import type { BuddyDeps } from "../src/agent/buddy";
 import { ToolBridge } from "../src/features/chat/chat.bridge";
 import { memoryHistory } from "../src/infrastructure/history/history";
+import { memoryMemories } from "../src/infrastructure/memory/memory";
 import type { ModelFactory } from "../src/infrastructure/providers/openrouter/openrouter.client";
 
 const usage = {
@@ -73,6 +74,7 @@ export const testDeps = (
   const deps = {
     searchCalls: 0,
     history: memoryHistory(),
+    memories: memoryMemories(),
     bridge: new ToolBridge(options.toolTimeoutMs ?? 2_000),
     models: (({ search }) => {
       if (search) {

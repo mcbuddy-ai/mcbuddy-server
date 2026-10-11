@@ -173,6 +173,23 @@ describe("POST /api/v2/chat", () => {
     expect((await fetch(`${base}/api/v2/chat`)).status).toBe(405);
   });
 
+  test("remember saves a fact that the next question sees in its prompt", async () => {
+    const { model, prompts } = scripted([
+      [toolCall("remember", { text: "Base at 120 64 -300" }), finish("tool-calls")],
+      [...text("Got it."), finish()],
+      [...text("At 120 64 -300."), finish()],
+    ]);
+    const deps = testDeps(model);
+    const base = start(deps);
+    const events = await readSse(await chat(base, { message: "my base is at 120 64 -300, remember it" }));
+    expect(events.filter((e) => e.event === "tool_status").map((e) => [e.data.name, e.data.state])).toEqual([
+      ["remember", "started"], ["remember", "finished"],
+    ]);
+    await readSse(await chat(base, { message: "where is my base?" }));
+    expect(JSON.stringify(prompts[2])).toContain("Base at 120 64 -300");
+    expect((await deps.memories.list("player-1")).map((m) => m.text)).toEqual(["Base at 120 64 -300"]);
+  });
+
   test("history carries over between questions", async () => {
     const { model, prompts } = scripted([[...text("Ender pearls."), finish()], [...text("Twelve."), finish()]]);
     const base = start(testDeps(model));

@@ -4,8 +4,10 @@ import type { ToolBridge } from "../features/chat/chat.bridge";
 import type { Emit } from "../features/chat/chat.events";
 import { exactCalculationsTool } from "../features/tools/exact-calculations.tool";
 import { gameTools, offeredTools } from "../features/tools/game.tools";
+import { memoryTools } from "../features/tools/memory.tools";
 import { searchWebTool } from "../features/tools/search-web.tool";
 import type { HistoryStore } from "../infrastructure/history/history";
+import type { Memory, MemoryStore } from "../infrastructure/memory/memory";
 import type { ModelFactory } from "../infrastructure/providers/openrouter/openrouter.client";
 import { logger } from "../shared/logging/logger";
 import { API_ERRORS, ApiFailure, apierror } from "../shared/types/errors";
@@ -16,6 +18,7 @@ import { systemPrompt } from "./prompts";
 export interface BuddyDeps {
   models: ModelFactory;
   history: HistoryStore;
+  memories: MemoryStore;
   bridge: ToolBridge;
 }
 
@@ -26,6 +29,20 @@ export interface RunOptions {
 }
 
 const MAX_STEPS = Number(process.env.MAX_AGENT_STEPS || 8);
+
+/** v1 callers without a user id share "anonymous"; they get no memory. */
+const remembers = (userId: string) => userId !== "anonymous";
+
+const loadMemories = async (deps: BuddyDeps, userId: string): Promise<Memory[]> => {
+  if (!remembers(userId)) return [];
+  try {
+    return await deps.memories.list(userId);
+  } catch (error) {
+    // Memories are a nicety, like history: answer without them.
+    logger.warn(`Memories unavailable for ${userId}: ${String(error)}`);
+    return [];
+  }
+};
 
 /** The parts of Mastra's stream output this runner reads, the same for both modes. */
 interface AgentStream {
@@ -61,7 +78,8 @@ export const runBuddy = async (context: RunContext, deps: BuddyDeps, options: Ru
   try {
     const model = deps.models({ token: context.token, platform: context.platform });
     const tools = offeredTools(context.tools, context.player?.op === true);
-    const agent = new Agent({ id: "mcbuddy", name: "MCBuddy", instructions: systemPrompt({ ...context, tools }), model });
+    const memories = await loadMemories(deps, context.userId);
+    const agent = new Agent({ id: "mcbuddy", name: "MCBuddy", instructions: systemPrompt({ ...context, tools }, { memories }), model });
     // askx turns one request into commands; earlier chat would only confuse it, as in v1.
     const history = context.mode === "ask" ? await deps.history.load(context.userId) : [];
     const messages: ModelMessage[] = [...history, { role: "user", content: context.message }];
@@ -77,6 +95,9 @@ export const runBuddy = async (context: RunContext, deps: BuddyDeps, options: Ru
         game: gameTools(tools, runId, deps.bridge),
         web: { search_web: searchWebTool(deps.models, { token: context.token, platform: context.platform, emit }) },
         math: { exact_calculations: exactCalculationsTool({ emit }) },
+        ...(context.mode === "ask" && remembers(context.userId)
+          ? { memory: memoryTools(deps.memories, { userId: context.userId, emit }) }
+          : {}),
       },
     };
     const stream = (

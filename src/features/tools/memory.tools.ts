@@ -1,0 +1,56 @@
+import { createTool } from "@mastra/core/tools";
+import { z } from "zod";
+import { MAX_MEMORIES, MAX_MEMORY_CHARS, type MemoryStore } from "../../infrastructure/memory/memory";
+import { logger } from "../../shared/logging/logger";
+import type { Emit } from "../chat/chat.events";
+
+/** remember and forget: the agent keeps lasting facts about the asking player, and only them. */
+export const memoryTools = (memories: MemoryStore, options: { userId: string; emit: Emit }) => {
+  const status = (name: string, args: object) => {
+    const callId = crypto.randomUUID();
+    return (state: "started" | "finished" | "failed", summary?: string) =>
+      options.emit({ event: "tool_status", data: { call_id: callId, name, kind: "server", state, args, ...(summary ? { summary } : {}) } });
+  };
+  return {
+    remember: createTool({
+      id: "remember",
+      description: `Saves a lasting fact about the asking player for future conversations: where their base or portals are, their goals, how they like answers. One short fact per call, up to ${MAX_MEMORY_CHARS} characters, at most ${MAX_MEMORIES} in total. Never secrets, passwords, or other players' data.`,
+      inputSchema: z.object({ text: z.string().min(3).max(MAX_MEMORY_CHARS) }),
+      execute: async ({ text }) => {
+        const report = status("remember", { text });
+        report("started");
+        try {
+          const saved = await memories.add(options.userId, text);
+          if (saved === "full") {
+            report("failed", "memory is full");
+            return { error: `Memory is full (${MAX_MEMORIES}). Forget an outdated fact first, or tell the player to clear some with /ask forget.` };
+          }
+          report("finished", saved.text.slice(0, 60));
+          return { saved };
+        } catch (error) {
+          logger.warn(`Couldn't remember for ${options.userId}: ${String(error)}`);
+          report("failed", "memory unavailable");
+          return { error: "Memory is unavailable right now." };
+        }
+      },
+    }),
+    forget: createTool({
+      id: "forget",
+      description: "Deletes one remembered fact about the asking player by its id, when they ask or when it's outdated.",
+      inputSchema: z.object({ id: z.string().min(1).max(16) }),
+      execute: async ({ id }) => {
+        const report = status("forget", { id });
+        report("started");
+        try {
+          const removed = await memories.remove(options.userId, id);
+          report(removed ? "finished" : "failed", removed ? "forgotten" : "no such memory");
+          return removed ? { forgotten: id } : { error: `No memory with id ${id}` };
+        } catch (error) {
+          logger.warn(`Couldn't forget for ${options.userId}: ${String(error)}`);
+          report("failed", "memory unavailable");
+          return { error: "Memory is unavailable right now." };
+        }
+      },
+    }),
+  };
+};
