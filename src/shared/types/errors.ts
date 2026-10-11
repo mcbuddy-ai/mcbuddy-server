@@ -17,10 +17,36 @@ export const API_ERRORS = {
   EMPTY_QUESTION: { code: 'EMPTY_QUESTION', message: 'Question is empty', statusCode: 400 },
   QUESTION_TOO_LONG: { code: 'QUESTION_TOO_LONG', message: 'Question too long (max 1000 characters)', statusCode: 400 },
   NO_AI_RESPONSE: { code: 'NO_AI_RESPONSE', message: 'No response from AI model', statusCode: 503 },
-  BAD_REQUEST: { code: 'BAD_REQUEST', message: 'Invalid request body', statusCode: 400 }
+  BAD_REQUEST: { code: 'BAD_REQUEST', message: 'Invalid request body', statusCode: 400 },
+  INVALID_JSON: { code: 'INVALID_JSON', message: 'Invalid JSON body', statusCode: 400 },
+  METHOD_NOT_SUPPORTED: { code: 'METHOD_NOT_SUPPORTED', message: 'Method not supported', statusCode: 405 },
+  PLATFORM_NOT_SUPPORTED: { code: 'PLATFORM_NOT_SUPPORTED', message: 'Platform not supported', statusCode: 400 },
+  RUN_NOT_FOUND: { code: 'RUN_NOT_FOUND', message: 'No such run or tool call', statusCode: 404 },
+  ALREADY_ANSWERED: { code: 'ALREADY_ANSWERED', message: 'This tool call already has a result', statusCode: 409 },
+  CANCELLED: { code: 'CANCELLED', message: 'The request was cancelled', statusCode: 499 },
 } as const;
 
 export const apierror = (baseError: typeof API_ERRORS[keyof typeof API_ERRORS], details?: string): ApiError => ({
   ...baseError,
   message: details ? `${baseError.message}: ${details}` : baseError.message
-}); 
+});
+
+/** An ApiError that can be thrown through async code and caught at the edge. */
+export class ApiFailure extends Error {
+  readonly code: string;
+  readonly statusCode: number;
+
+  constructor(error: ApiError) {
+    super(error.message);
+    this.code = error.code;
+    this.statusCode = error.statusCode ?? 500;
+  }
+
+  toApiError(): ApiError {
+    return { code: this.code, message: this.message, statusCode: this.statusCode };
+  }
+}
+
+export const fail = (base: typeof API_ERRORS[keyof typeof API_ERRORS], details?: string): never => {
+  throw new ApiFailure(apierror(base, details));
+};
