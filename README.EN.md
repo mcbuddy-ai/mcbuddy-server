@@ -14,78 +14,60 @@
 
 > **Note**: This is the main backend for the MCBuddy ecosystem, providing AI answers for all clients.
 
-## Features
+## How it works
 
-### Core Functionality
+MCBuddy Server is a [Mastra](https://mastra.ai) agent on top of OpenRouter that answers players in Minecraft and in Telegram. In the game it sees what is going on with the player who asks: inventory, health, surroundings, the recipes of that server. It searches the web on its own when a question needs fresh facts.
 
-- **REST API** — `/api/ask` and `/api/askx` endpoints for getting AI answers
-- **OpenRouter integration** — access to various AI models through a single API
-- **Web search** — advanced internet search for accurate answers
-- **Contextual memory** — preserving dialogue history via Redis
-- **Usage metrics** — tracking requests and AI costs
+The plugin opens one streaming request, `POST /api/v2/chat`, per question. The server answers with Server-Sent Events while the agent works:
 
-### Management System
+- `reasoning` – pieces of the model's reasoning, when the model exposes it;
+- `tool_call` – the agent needs something from the game, such as the inventory. The plugin runs the tool and posts the result to `POST /api/v2/chat/{run_id}/tools/{call_id}`;
+- `tool_status` – what the agent is doing right now: reading the inventory, searching the web;
+- `text` – the answer as it's written, then `usage` and `done`.
 
-- **User tokens** — ability to use custom OpenRouter token
-- **Response caching** — Redis for fast access to history
-- **Database** — MongoDB for storing users and metrics
-- **Task queues** — BullMQ for background task processing
-- **Health check** — service status monitoring
+For `/askx`, a `commands` event with the command list replaces the text. The full protocol is in [docs/protocol-v2.md](docs/protocol-v2.md).
 
-### API Endpoints
+Game tools only see the player who asked and the world around them; other players' coordinates and inventories stay out of reach. The plugin sends the list of tools it offers, so a server admin can switch any of them off. Web search (`search_web`) runs on the backend, and the agent decides when it's worth it instead of searching for every question.
 
-- **POST /api/ask** — send a question to the AI assistant
-- **POST /api/askx** — perform an action via AI (command generation)
-- **GET /api/health** — check service status
+`POST /api/ask` and `POST /api/askx` work as before for the Telegram bot and plugins older than 2.0: the same agent without game tools, one JSON answer. Chat history is shared: Redis keeps each user's recent messages for both API versions.
 
-## Usage
+> Pending tool calls live in the process's memory, so the server assumes a single instance. With several, the tool result must reach the instance that holds the stream.
 
-### API Examples
-
-#### Request to /api/ask
+### Examples
 
 ```bash
+# v1: one JSON answer
 curl -X POST https://mcbuddy.ru/api/ask \
   -H "Content-Type: application/json" \
-  -H "X-OpenRouter-Token: sk-or-your-token" \
-  -d '{
-    "question": "How to craft a diamond pickaxe?",
-    "userId": "user123"
-  }'
+  -d '{"question": "How do I craft a diamond pickaxe?", "platform": "telegram", "user_id": "42"}'
+# {"answer": "...", "status": "success", "timestamp": "...", "platform": "telegram", "user_id": "42"}
+
+# v2: a stream of events
+curl -N -X POST https://mcbuddy.ru/api/v2/chat \
+  -H "Content-Type: application/json" -H "Accept: text/event-stream" \
+  -d '{"mode": "ask", "message": "what should I do next?", "user_id": "5627dd98-...", "player": {"name": "Steve"}, "tools": ["get_inventory"]}'
 ```
 
-#### Request to /api/askx
+Players and bots can send `X-OpenRouter-Token: sk-or-...` to use their own OpenRouter key and billing.
 
-```bash
-curl -X POST https://mcbuddy.ru/api/askx \
-  -H "Content-Type: application/json" \
-  -H "X-OpenRouter-Token: sk-or-your-token" \
-  -d '{
-    "action": "give player a diamond sword",
-    "userId": "user123",
-    "targetPlayer": "Steve"
-  }'
-```
+## Environment
 
-### API Response
+| Variable | Purpose | Default |
+|---|---|---|
+| `OPENROUTER_API_KEY` | OpenRouter key | required |
+| `OPENROUTER_API_URL` | OpenRouter API address | `https://openrouter.ai/api/v1` |
+| `OPENROUTER_API_MODEL` | The agent's model. It must support tool calling: `perplexity/sonar*` won't do | `openai/gpt-5-mini` |
+| `SEARCH_MODEL` | Online model for web search | `perplexity/sonar` |
+| `OPENROUTER_API_CTX` | Search context size: `low`, `medium`, `high` | `medium` |
+| `OPENROUTER_REASONING_EFFORT` | Reasoning effort for models that reason: `low`, `medium`, `high` | unset |
+| `TOOL_TIMEOUT_MS` | How long to wait for the plugin's tool result | `15000` |
+| `MAX_AGENT_STEPS` | Model calls per question | `8` |
+| `MAX_ACTIVE_RUNS` | Streaming questions at once | `200` |
+| `SSE_PING_MS` | Ping interval that keeps proxies from closing the stream | `15000` |
+| `MAX_MESSAGES`, `CHAT_TTL_SECONDS` | Chat history length and lifetime in Redis | `25`, `3600` |
+| `SYSTEM_MESSAGE`, `SYSTEM_MESSAGE_TG`, `ASKX_SYSTEM_MESSAGE`, `SYSTEM_MESSAGE_WITH_CONTEXT` | Optional. v1 prompts in base64; when set, they replace the built-in ones | unset |
 
-```json
-{
-  "answer": "To craft a diamond pickaxe you need...",
-  "model": "anthropic/claude-3-haiku",
-  "tokens": 150,
-  "cached": false
-}
-```
-
-## Compatibility
-
-- **REST API** — works with any HTTP clients
-- **Database**: MongoDB 8.0+
-- **Cache**: Redis 8.0+
-- **Runtime**: Bun 1.0+
-- **Deployment**: Docker + Docker Compose
-- **Proxy**: Caddy for SSL and routing
+Prompts live in [src/prompts](src/prompts) (`minecraft-ask.md`, `minecraft-askx.md`, `telegram.md`) and ship inside the build. Each run appends who asks, their language, the server version, and the available tools. Remove old `SYSTEM_MESSAGE*` variables to switch to the new prompts.
 
 ## Deployment
 
@@ -227,18 +209,20 @@ This allows using your own OpenRouter billing and pricing.
 
 - **TypeScript** — main development language
 - **Bun.js** — fast JS runtime and package manager
-- **PostgreSQL + Drizzle ORM** — main database with type-safe ORM
-- **Redis + ioredis** — chat history and session caching
-- **BullMQ** — queue system and background tasks
+- **Mastra** — the agent, tools, and streaming on top of the AI SDK
+- **AI SDK + @openrouter/ai-sdk-provider** — access to OpenRouter models
+- **zod** — request and tool schemas
+- **MongoDB + Mongoose** — users and metrics
+- **Redis** — chat history
 - **Caddy** — reverse proxy and SSL termination
-- **OpenRouter** — API for accessing various AI models
-- **fp-ts** — functional programming in TypeScript
 - **Docker + Docker Compose** — containerization and orchestration
 - **tslog** — structured logging
 
 ## AI Participation
 
 AI tools were used selectively for specific tasks: optimizing prompts for OpenRouter, generating part of the documentation, and refactoring some TypeScript types. The main architecture, business logic, and critical components were developed manually. Commits were fully written by an AI agent, with AI participation minimized where possible.
+
+The move to Mastra and protocol v2 (the agent with tools, streaming, new prompts, tests) was done entirely by the Claude AI agent from my brief.
 
 ## Links to Related Projects
 

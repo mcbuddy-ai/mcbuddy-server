@@ -14,78 +14,32 @@
 
 > **注意**：这是 MCBuddy 生态系统的主要后端，为所有客户端提供 AI 答案。
 
-## 功能特性
+## 工作原理
 
-### 核心功能
+MCBuddy Server 是一个基于 OpenRouter 的 [Mastra](https://mastra.ai) 智能体，在 Minecraft 和 Telegram 中回答玩家的问题。在游戏中，它能看到提问玩家的状态：背包、生命值、周围环境，以及该服务器的配方。需要最新信息时，它会自行上网搜索。
 
-- **REST API** — `/api/ask` 和 `/api/askx` 端点用于获取 AI 答案
-- **OpenRouter 集成** — 通过单一 API 访问各种 AI 模型
-- **网络搜索** — 高级互联网搜索以获得准确答案
-- **上下文记忆** — 通过 Redis 保留对话历史
-- **使用指标** — 跟踪请求和 AI 成本
+插件为每个问题发起一个流式请求 `POST /api/v2/chat`，服务器在智能体工作时以 Server-Sent Events 返回：
 
-### 管理系统
+- `reasoning` —— 模型的推理片段（如果模型提供）；
+- `tool_call` —— 智能体需要游戏中的信息（例如背包）。插件执行工具后，将结果发送到 `POST /api/v2/chat/{run_id}/tools/{call_id}`；
+- `tool_status` —— 智能体当前在做什么：查看背包、搜索网络；
+- `text` —— 逐步生成的回答，最后是 `usage` 和 `done`。
 
-- **用户令牌** — 可以使用自定义 OpenRouter 令牌
-- **响应缓存** — Redis 用于快速访问历史记录
-- **数据库** — MongoDB 用于存储用户和指标
-- **任务队列** — BullMQ 用于后台任务处理
-- **健康检查** — 服务状态监控
+对于 `/askx`，返回的是包含命令列表的 `commands` 事件。完整协议见 [docs/protocol-v2.md](docs/protocol-v2.md)。
 
-### API 端点
+游戏工具只能看到提问的玩家及其周围的世界，看不到其他玩家的坐标和背包。网络搜索（`search_web`）在后端执行，由智能体自行决定何时搜索。
 
-- **POST /api/ask** — 向 AI 助手发送问题
-- **POST /api/askx** — 通过 AI 执行操作（命令生成）
-- **GET /api/health** — 检查服务状态
+`POST /api/ask` 和 `POST /api/askx` 保持不变，供 Telegram 机器人和 2.0 之前的插件使用：同一个智能体，但没有游戏工具，一次返回 JSON。聊天记录在 Redis 中共享。
 
-## 使用方法
+> 等待中的工具调用保存在进程内存中，因此服务器按单实例设计。
 
-### API 示例
+## 环境变量
 
-#### 向 /api/ask 发送请求
+主要变量：`OPENROUTER_API_KEY`（必填）、`OPENROUTER_API_MODEL`（必须支持工具调用，默认 `openai/gpt-5-mini`）、`SEARCH_MODEL`（联网搜索模型，默认 `perplexity/sonar`）、`OPENROUTER_API_CTX`、`OPENROUTER_REASONING_EFFORT`、`TOOL_TIMEOUT_MS`（默认 15000）、`MAX_AGENT_STEPS`（默认 8）、`MAX_ACTIVE_RUNS`、`SSE_PING_MS`、`MAX_MESSAGES`、`CHAT_TTL_SECONDS`。旧的 base64 提示词变量 `SYSTEM_MESSAGE*` 为可选项：如果设置，会覆盖内置提示词。完整说明见俄文 README。
 
-```bash
-curl -X POST https://mcbuddy.ru/api/ask \
-  -H "Content-Type: application/json" \
-  -H "X-OpenRouter-Token: sk-or-your-token" \
-  -d '{
-    "question": "如何制作钻石镐？",
-    "userId": "user123"
-  }'
-```
+提示词位于 [src/prompts](src/prompts)，随构建一起打包。
 
-#### 向 /api/askx 发送请求
-
-```bash
-curl -X POST https://mcbuddy.ru/api/askx \
-  -H "Content-Type: application/json" \
-  -H "X-OpenRouter-Token: sk-or-your-token" \
-  -d '{
-    "action": "给玩家一把钻石剑",
-    "userId": "user123",
-    "targetPlayer": "Steve"
-  }'
-```
-
-### API 响应
-
-```json
-{
-  "answer": "要制作钻石镐，你需要...",
-  "model": "anthropic/claude-3-haiku",
-  "tokens": 150,
-  "cached": false
-}
-```
-
-## 兼容性
-
-- **REST API** — 适用于任何 HTTP 客户端
-- **数据库**: MongoDB 8.0+
-- **缓存**: Redis 6.0+
-- **运行时**: Bun 1.0+
-- **部署**: Docker + Docker Compose
-- **代理**: Caddy 用于 SSL 和路由
+玩家和机器人可以发送请求头 `X-OpenRouter-Token: sk-or-...` 来使用自己的 OpenRouter 密钥。
 
 ## 部署
 
@@ -208,7 +162,8 @@ X-OpenRouter-Token: sk-or-your-custom-token
 - **BullMQ** — 队列系统和后台任务
 - **Caddy** — 反向代理和 SSL 终止
 - **OpenRouter** — 用于访问各种 AI 模型的 API
-- **fp-ts** — TypeScript 中的函数式编程
+- **Mastra** — 基于 AI SDK 的智能体、工具和流式输出
+- **zod** — 请求和工具的模式校验
 - **Docker + Docker Compose** — 容器化和编排
 - **tslog** — 结构化日志记录
 
