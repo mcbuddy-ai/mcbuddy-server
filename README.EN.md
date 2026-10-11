@@ -56,7 +56,7 @@ Players and bots can send `X-OpenRouter-Token: sk-or-...` to use their own OpenR
 |---|---|---|
 | `OPENROUTER_API_KEY` | OpenRouter key | required |
 | `OPENROUTER_API_URL` | OpenRouter API address | `https://openrouter.ai/api/v1` |
-| `OPENROUTER_API_MODEL` | The agent's model. It must support tool calling: `perplexity/sonar*` won't do | `openai/gpt-5-mini` |
+| `OPENROUTER_API_MODEL` | The agent's model. It must support tool calling: `perplexity/sonar*` won't do | `openai/gpt-6-luna` |
 | `SEARCH_MODEL` | Online model for web search | `perplexity/sonar` |
 | `OPENROUTER_API_CTX` | Search context size: `low`, `medium`, `high` | `medium` |
 | `OPENROUTER_REASONING_EFFORT` | Reasoning effort for models that reason: `low`, `medium`, `high` | unset |

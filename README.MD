@@ -130,7 +130,7 @@ docker compose up -d
 |---|---|---|
 | `OPENROUTER_API_KEY` | Ключ OpenRouter | обязательна |
 | `OPENROUTER_API_URL` | Адрес API OpenRouter | `https://openrouter.ai/api/v1` |
-| `OPENROUTER_API_MODEL` | Модель агента. Нужна модель с вызовом инструментов: `perplexity/sonar*` не подойдёт | `openai/gpt-5-mini` |
+| `OPENROUTER_API_MODEL` | Модель агента. Нужна модель с вызовом инструментов: `perplexity/sonar*` не подойдёт | `openai/gpt-6-luna` |
 | `SEARCH_MODEL` | Модель для веб-поиска, с доступом в интернет | `perplexity/sonar` |
 | `OPENROUTER_API_CTX` | Объём контекста поиска: `low`, `medium`, `high` | `medium` |
 | `OPENROUTER_REASONING_EFFORT` | Усилие рассуждений для моделей, которые умеют рассуждать: `low`, `medium`, `high` | не задано |

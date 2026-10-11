@@ -1,4 +1,4 @@
-export const DEFAULT_MODEL = "openai/gpt-5-mini";
+export const DEFAULT_MODEL = "openai/gpt-6-luna";
 export const DEFAULT_SEARCH_MODEL = "perplexity/sonar";
 
 // Perplexity models search but can't call tools. v1 deployments set one as the main model;
