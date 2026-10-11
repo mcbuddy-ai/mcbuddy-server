@@ -2,6 +2,7 @@ import { Agent } from "@mastra/core/agent";
 import { APICallError, type ModelMessage } from "ai";
 import type { ToolBridge } from "../features/chat/chat.bridge";
 import type { Emit } from "../features/chat/chat.events";
+import { exactCalculationsTool } from "../features/tools/exact-calculations.tool";
 import { gameTools, offeredTools } from "../features/tools/game.tools";
 import { searchWebTool } from "../features/tools/search-web.tool";
 import type { HistoryStore } from "../infrastructure/history/history";
@@ -75,6 +76,7 @@ export const runBuddy = async (context: RunContext, deps: BuddyDeps, options: Ru
       toolsets: {
         game: gameTools(tools, runId, deps.bridge),
         web: { search_web: searchWebTool(deps.models, { token: context.token, platform: context.platform, emit }) },
+        math: { exact_calculations: exactCalculationsTool({ emit }) },
       },
     };
     const stream = (

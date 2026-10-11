@@ -6,7 +6,7 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun run --watch src/index.ts",
-    "build": "bun build src/application/entrypoint.ts --outdir dist/application --target bun",
+    "build": "bun build src/application/entrypoint.ts --outdir dist/application --target bun && bun build src/features/tools/calc.worker.ts --outdir dist/application --target bun",
     "test": "bun test",
     "typecheck": "tsc --noEmit"
   },
@@ -34,6 +34,7 @@
     "amqplib": "^0.10.9",
     "bullmq": "^5.65.0",
     "ioredis": "^5.8.2",
+    "mathjs": "^15.2.0",
     "mongoose": "^9.0.0",
     "tslog": "^4.10.2",
     "uuid": "^13.0.0",
