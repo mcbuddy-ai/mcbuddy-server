@@ -1,124 +1,59 @@
-import { redis } from 'bun';
-import * as E from 'fp-ts/Either';
-import { flow, pipe } from 'fp-ts/function';
-import * as T from 'fp-ts/Task';
-import * as TE from 'fp-ts/TaskEither';
-import { TaskEither, tryCatch } from 'fp-ts/TaskEither';
-import { policies, retry } from '../../shared/lib/retry';
+import { type BuddyDeps, runBuddy } from "../../agent/buddy";
+import { silent } from "../chat/chat.events";
+import { readJson } from "../../shared/lib/http";
 import { logger } from "../../shared/logging/logger";
-import { API_ERRORS, apierror, ApiError } from "../../shared/types/errors";
-import { ask } from "./ask.service";
-import { AskRequest, AskResponse, Message } from "./ask.types";
-import { MAX_MESSAGES, CHAT_TTL_SECONDS } from "./ask.env";
+import { API_ERRORS, type ApiError, ApiFailure, apierror } from "../../shared/types/errors";
 
-export const handleAsk = (req: Request) => {
-  const token = req.headers.get('X-OpenRouter-Token') || undefined;
-  
-  return pipe(
-    req,
-    TE.fromEitherK(check),
-    TE.chain(parse),
-    TE.chainEitherK(validate),
-    TE.bindTo('body'),
-    TE.bind('token', () => TE.right(token)),
-    TE.chainFirst(saveUserMessage),
-    TE.bind('aiResult', getAiResponse),
-    TE.chainFirst(saveAssistantMessage),
-    TE.map(createSuccessResponse),
-    TE.getOrElse(e => T.of(error(e)))
-  )();
+interface AskRequest {
+  question?: unknown;
+  platform?: unknown;
+  user_id?: unknown;
 }
-
-const getUserId = (body: AskRequest): string => body.user_id || "anonymous";
-const getPlatform = (body: AskRequest): string => body.platform || 'unknown';
-const saveUserMessage = ({ body }: { body: AskRequest }) => add(getUserId(body), 'user', body.question.trim());
-const getAiResponse = ({ body, token }: { body: AskRequest, token?: string }) => ask(getUserId(body), body.question.trim(), getPlatform(body), token);
-const saveAssistantMessage = ({ body, aiResult }: { body: AskRequest, aiResult: AskResponse }) => add(getUserId(body), 'assistant', aiResult.response);
-const createSuccessResponse = ({ body, aiResult }: { body: AskRequest, aiResult: AskResponse }) => success(body)(aiResult);
-
-const check = (req: Request): E.Either<ApiError, Request> =>
-  req.method === 'POST'
-    ? E.right(req)
-    : E.left({ message: 'Method not supported', code: 'METHOD_NOT_SUPPORTED', statusCode: 405 });
-
-const parse = (req: Request): TE.TaskEither<ApiError, AskRequest> =>
-  TE.tryCatch(
-    () => req.json() as Promise<AskRequest>,
-    (e): ApiError => {
-      logger.error('Failed to parse request body:', e);
-      return { message: 'Invalid JSON body', code: 'INVALID_JSON', statusCode: 400 };
-    }
-  );
-
-const validate = flow(
-  E.fromPredicate(
-    (body: AskRequest): body is AskRequest & { question: string } => !!body.question && typeof body.question === 'string',
-    (): ApiError => ({ message: "Parameter 'question' is required and must be a string", code: 'QUESTION_REQUIRED', statusCode: 400 })
-  ),
-  E.chain(
-    E.fromPredicate(
-      (body): body is AskRequest & { question: string } => body.question.length <= 1000,
-      (): ApiError => ({ message: 'Question is too long (maximum 1000 characters)', code: 'QUESTION_TOO_LONG', statusCode: 400 })
-    )
-  )
-);
-
-const checkContent = (content: string) => {
-  const trimmedContent = content.trim();
-  if (trimmedContent.length === 0) return E.left(apierror(API_ERRORS.EMPTY_QUESTION, 'Content is empty'));
-  if (trimmedContent.length > 4000) return E.left(apierror(API_ERRORS.QUESTION_TOO_LONG, 'Content is too long (max 4000 characters)'));
-  return E.right(trimmedContent);
-};
-
-const build = (role: 'user' | 'assistant') => (content: string): Message & { id: string } => ({ id: crypto.randomUUID(), role, content });
-
-const store = (userId: string, message: Message & { id: string }): TaskEither<ApiError, void> => {
-  const key = `chat_history:${userId}`;
-  const messageStr = JSON.stringify(message);
-
-  return retry(
-    `Redis save message for user ${userId}`,
-    policies.critical,
-    tryCatch(
-      async () => {
-        await redis.send("LPUSH", [key, messageStr]);
-        await redis.send("LTRIM", [key, "0", (MAX_MESSAGES - 1).toString()]);
-        await redis.send("EXPIRE", [key, CHAT_TTL_SECONDS.toString()]);
-      },
-      (error) => apierror(API_ERRORS.REDIS_ERROR, String(error))
-    )
-  );
-};
-
-export const add = (userId: string, role: 'user' | 'assistant', content: string): TaskEither<ApiError, void> => {
-  logger.info(`Adding ${role} message to chat history for user: ${userId}`);
-
-  return pipe(
-    TE.fromEither(checkContent(content)),
-    TE.map(build(role)),
-    TE.chain(message => {
-      logger.info(`Message added to chat ${userId}: ${message.role} - ${message.content.substring(0, 50)}...`);
-      return store(userId, message);
-    })
-  );
-};
 
 const error = (e: ApiError): Response => {
   logger.error(`API Error: ${e.code} - ${e.message}`);
-  return Response.json({
-    error: e.message,
-    code: e.code,
-    status: "error",
-    timestamp: new Date().toISOString(),
-  }, { status: e.statusCode || 500 });
+  return Response.json(
+    { error: e.message, code: e.code, status: "error", timestamp: new Date().toISOString() },
+    { status: e.statusCode || 500 },
+  );
 };
 
-const success = (body: AskRequest) => (aiResult: AskResponse): Response => {
-  return Response.json({
-    answer: aiResult.response,
-    status: "success",
-    timestamp: new Date().toISOString(),
-    platform: body.platform || 'unknown',
-    user_id: body.user_id || 'anonymous',
-  });
+/** POST /api/ask, v1: the Telegram bot and older plugins. Same agent, no game tools, one JSON answer. */
+export const handleAsk = (deps: BuddyDeps) => async (req: Request): Promise<Response> => {
+  if (req.method !== "POST") return error(apierror(API_ERRORS.METHOD_NOT_SUPPORTED));
+  const json = await readJson(req);
+  if (!json.ok) return error(json.error);
+  const body = (json.body ?? {}) as AskRequest;
+  if (typeof body.question !== "string" || !body.question) {
+    return error({ code: "QUESTION_REQUIRED", message: "Parameter 'question' is required and must be a string", statusCode: 400 });
+  }
+  const question = body.question.trim();
+  if (!question) return error(apierror(API_ERRORS.EMPTY_QUESTION));
+  if (question.length > 1000) return error(apierror(API_ERRORS.QUESTION_TOO_LONG));
+
+  const platform = typeof body.platform === "string" ? body.platform : "unknown";
+  const userId = typeof body.user_id === "string" && body.user_id ? body.user_id : "anonymous";
+  try {
+    const result = await runBuddy(
+      {
+        mode: "ask",
+        platform: platform === "telegram" ? "telegram" : "minecraft",
+        userId,
+        message: question,
+        tools: [],
+        token: req.headers.get("X-OpenRouter-Token") || undefined,
+      },
+      deps,
+      { runId: crypto.randomUUID(), emit: silent, signal: req.signal },
+    );
+    return Response.json({
+      answer: result.answer,
+      status: "success",
+      timestamp: new Date().toISOString(),
+      platform,
+      user_id: userId,
+    });
+  } catch (e) {
+    return error(e instanceof ApiFailure ? e.toApiError() : apierror(API_ERRORS.AI_REQUEST_FAILED, String(e)));
+  }
 };
