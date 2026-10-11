@@ -75,6 +75,22 @@ describe("POST /api/v2/chat", () => {
     expect(system).toContain("Locale: en_us");
   });
 
+  test("operator tools reach the model only for operators", async () => {
+    const tools = ["get_world", "give_item"];
+    const asOp = scripted([[...text("ok"), finish()]]);
+    await readSse(await chat(start(testDeps(asOp.model)), { message: "hi", player: { name: "Admin", op: true }, tools }));
+    expect(JSON.stringify(asOp.prompts[0])).toContain("Game tools you can call: get_world, give_item");
+    server?.stop(true);
+
+    const asPlayer = scripted([[toolCall("give_item", { item: "diamond_sword" }), finish("tool-calls")], [...text("Admins only."), finish()]]);
+    const events = await readSse(await chat(start(testDeps(asPlayer.model)), { message: "give me a sword", tools }));
+    const system = JSON.stringify(asPlayer.prompts[0]);
+    expect(system).toContain("Game tools you can call: get_world");
+    expect(system).not.toContain("get_world, give_item");
+    // A forced call to a tool this player doesn't have never reaches the plugin.
+    expect(events.some((e) => e.event === "tool_call")).toBe(false);
+  });
+
   test("a tool the plugin never answers times out and the run still finishes", async () => {
     const { model, prompts } = scripted([[toolCall("get_target", {}), finish("tool-calls")], [...text("I can't see it."), finish()]]);
     const base = start(testDeps(model, { toolTimeoutMs: 100 }));

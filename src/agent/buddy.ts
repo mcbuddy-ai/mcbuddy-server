@@ -2,7 +2,7 @@ import { Agent } from "@mastra/core/agent";
 import { APICallError, type ModelMessage } from "ai";
 import type { ToolBridge } from "../features/chat/chat.bridge";
 import type { Emit } from "../features/chat/chat.events";
-import { gameTools } from "../features/tools/game.tools";
+import { gameTools, offeredTools } from "../features/tools/game.tools";
 import { searchWebTool } from "../features/tools/search-web.tool";
 import type { HistoryStore } from "../infrastructure/history/history";
 import type { ModelFactory } from "../infrastructure/providers/openrouter/openrouter.client";
@@ -59,7 +59,8 @@ export const runBuddy = async (context: RunContext, deps: BuddyDeps, options: Ru
   const { runId, emit, signal } = options;
   try {
     const model = deps.models({ token: context.token, platform: context.platform });
-    const agent = new Agent({ id: "mcbuddy", name: "MCBuddy", instructions: systemPrompt(context), model });
+    const tools = offeredTools(context.tools, context.player?.op === true);
+    const agent = new Agent({ id: "mcbuddy", name: "MCBuddy", instructions: systemPrompt({ ...context, tools }), model });
     // askx turns one request into commands; earlier chat would only confuse it, as in v1.
     const history = context.mode === "ask" ? await deps.history.load(context.userId) : [];
     const messages: ModelMessage[] = [...history, { role: "user", content: context.message }];
@@ -72,7 +73,7 @@ export const runBuddy = async (context: RunContext, deps: BuddyDeps, options: Ru
       maxSteps: MAX_STEPS,
       modelSettings: { maxRetries: 2 },
       toolsets: {
-        game: gameTools(context.tools, runId, deps.bridge),
+        game: gameTools(tools, runId, deps.bridge),
         web: { search_web: searchWebTool(deps.models, { token: context.token, platform: context.platform, emit }) },
       },
     };
