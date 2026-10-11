@@ -16,7 +16,7 @@ describe("offered game tools", () => {
 
   test("player and operator tools don't overlap", () => {
     expect(GAME_TOOLS.filter((name) => OPERATOR_TOOLS.includes(name))).toEqual([]);
-    expect(GAME_TOOLS).toContain("point_to");
+    expect(GAME_TOOLS).toEqual(expect.arrayContaining(["point_to", "set_reminder", "get_reminders", "cancel_reminder"]));
     expect(OPERATOR_TOOLS).toContain("give_item");
   });
 });

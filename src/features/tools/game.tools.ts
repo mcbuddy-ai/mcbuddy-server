@@ -78,8 +78,17 @@ const definitions = {
   },
   set_reminder: {
     description:
-      "Reminds the asking player in chat after a delay, for example to take bread out of a furnace. At most 3 pending at once; a server restart drops them.",
+      "Reminds the asking player in chat after a delay, for example to take bread out of a furnace. The server caps how many can wait at once (10 by default); a server restart drops them.",
     input: z.object({ minutes: z.number().int().min(1).max(120), text: z.string().min(1).max(100) }),
+  },
+  get_reminders: {
+    description: "The asking player's pending reminders: id, text, minutes left, and when each is due.",
+    input: z.object({}),
+  },
+  cancel_reminder: {
+    description: "Cancels one of the asking player's reminders by id (from get_reminders), or all of them with all: true.",
+    // One flat object, as for teleport: tool parameters can't be a union.
+    input: z.object({ id: z.string().min(1).max(32).optional(), all: z.boolean().optional() }),
   },
 } as const;
 
