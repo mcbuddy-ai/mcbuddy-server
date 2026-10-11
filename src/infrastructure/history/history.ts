@@ -6,17 +6,38 @@ export interface HistoryMessage {
   content: string;
 }
 
-/** Recent messages per user, shared by v1 and v2 so a conversation carries over between them. */
-export interface HistoryStore {
-  load(userId: string): Promise<HistoryMessage[]>;
-  append(userId: string, message: HistoryMessage): Promise<void>;
+/** A player's conversation: recent messages verbatim and a summary of what came before them. */
+export interface Session {
+  summary?: string;
+  messages: HistoryMessage[];
 }
 
-export const MAX_MESSAGES = Number(process.env.MAX_MESSAGES || 25);
-export const CHAT_TTL_SECONDS = Number(process.env.CHAT_TTL_SECONDS || 3600);
+/** Writes a new summary from the old one and the messages that drop out of the verbatim window. */
+export type Summarize = (summary: string | undefined, older: HistoryMessage[]) => Promise<string>;
+
+/** Sessions per user, shared by v1 and v2 so a conversation carries over between them. */
+export interface HistoryStore {
+  load(userId: string): Promise<Session>;
+  append(userId: string, ...messages: HistoryMessage[]): Promise<void>;
+  /** Once FOLD_AT exchanges pile up, folds all but the last KEEP into the summary. True when it folded. */
+  compact(userId: string, summarize: Summarize): Promise<boolean>;
+  clear(userId: string): Promise<void>;
+}
+
+/** Exchanges kept verbatim after a fold. */
+export const KEEP_EXCHANGES = 8;
+/** Exchanges that trigger a fold; between the two the model sees them all, so a fold runs every few questions. */
+export const FOLD_AT_EXCHANGES = 12;
+export const SESSION_TTL_SECONDS = Number(process.env.CHAT_TTL_SECONDS || 24 * 3600);
+const KEEP = KEEP_EXCHANGES * 2;
+const FOLD_AT = FOLD_AT_EXCHANGES * 2;
+// If folding keeps failing, the oldest messages simply fall off here.
+const CAP = FOLD_AT + 16;
 const MAX_CONTENT = 4000;
+export const MAX_SUMMARY = 1500;
 
 const key = (userId: string) => `chat_history:${userId}`;
+const summaryKey = (userId: string) => `chat_summary:${userId}`;
 
 const parse = (raw: string): HistoryMessage | undefined => {
   try {
@@ -30,42 +51,77 @@ const parse = (raw: string): HistoryMessage | undefined => {
   return undefined;
 };
 
-/** Same keys and limits as v1: newest first in a Redis list, trimmed and expiring. */
+const entries = (messages: HistoryMessage[]) =>
+  messages
+    .map((m) => ({ role: m.role, content: m.content.trim().slice(0, MAX_CONTENT) }))
+    .filter((m) => m.content)
+    .map((m) => JSON.stringify({ id: crypto.randomUUID(), ...m }));
+
+/** Newest first in a Redis list (the v1 layout), the summary next to it; both expire together. */
 export const redisHistory: HistoryStore = {
   async load(userId) {
     try {
-      const raw = (await redis.send("LRANGE", [key(userId), "0", String(MAX_MESSAGES - 1)])) as string[];
-      return (raw ?? []).map(parse).filter((m): m is HistoryMessage => !!m).reverse();
+      const [raw, summary] = await Promise.all([
+        redis.send("LRANGE", [key(userId), "0", String(FOLD_AT - 1)]) as Promise<string[]>,
+        redis.get(summaryKey(userId)),
+      ]);
+      const messages = (raw ?? []).map(parse).filter((m): m is HistoryMessage => !!m).reverse();
+      return { messages, ...(summary ? { summary } : {}) };
     } catch (error) {
       // History is a nicety: answer without it rather than fail the question.
       logger.warn(`History unavailable for ${userId}: ${String(error)}`);
-      return [];
+      return { messages: [] };
     }
   },
-  async append(userId, message) {
-    const content = message.content.trim().slice(0, MAX_CONTENT);
-    if (!content) return;
-    const entry = JSON.stringify({ id: crypto.randomUUID(), role: message.role, content });
+  async append(userId, ...messages) {
+    const values = entries(messages);
+    if (values.length === 0) return;
     try {
-      await redis.send("LPUSH", [key(userId), entry]);
-      await redis.send("LTRIM", [key(userId), "0", String(MAX_MESSAGES - 1)]);
-      await redis.send("EXPIRE", [key(userId), String(CHAT_TTL_SECONDS)]);
+      await redis.send("LPUSH", [key(userId), ...values]);
+      await redis.send("LTRIM", [key(userId), "0", String(CAP - 1)]);
+      await redis.expire(key(userId), SESSION_TTL_SECONDS);
+      await redis.expire(summaryKey(userId), SESSION_TTL_SECONDS);
     } catch (error) {
       logger.warn(`Couldn't save history for ${userId}: ${String(error)}`);
     }
   },
+  async compact(userId, summarize) {
+    if (Number(await redis.send("LLEN", [key(userId)])) <= FOLD_AT) return false;
+    const raw = (await redis.send("LRANGE", [key(userId), String(KEEP), "-1"])) as string[];
+    const older = raw.map(parse).filter((m): m is HistoryMessage => !!m).reverse();
+    const summary = (await summarize((await redis.get(summaryKey(userId))) ?? undefined, older)).trim().slice(0, MAX_SUMMARY);
+    if (summary) await redis.set(summaryKey(userId), summary, "EX", SESSION_TTL_SECONDS);
+    await redis.send("LTRIM", [key(userId), "0", String(KEEP - 1)]);
+    return true;
+  },
+  async clear(userId) {
+    await redis.del(key(userId), summaryKey(userId));
+  },
 };
 
-/** For tests and local runs without Redis. */
+/** For tests and local runs without Redis; same windows, no expiry. */
 export const memoryHistory = (): HistoryStore => {
-  const store = new Map<string, HistoryMessage[]>();
+  const store = new Map<string, Session>();
+  const of = (userId: string): Session => store.get(userId) ?? { messages: [] };
   return {
     async load(userId) {
-      return [...(store.get(userId) ?? [])];
+      const session = of(userId);
+      return { ...session, messages: session.messages.slice(-FOLD_AT) };
     },
-    async append(userId, message) {
-      const list = [...(store.get(userId) ?? []), message].slice(-MAX_MESSAGES);
-      store.set(userId, list);
+    async append(userId, ...messages) {
+      const session = of(userId);
+      store.set(userId, { ...session, messages: [...session.messages, ...messages].slice(-CAP) });
+    },
+    async compact(userId, summarize) {
+      const session = of(userId);
+      if (session.messages.length <= FOLD_AT) return false;
+      const older = session.messages.slice(0, -KEEP);
+      const summary = (await summarize(session.summary, older)).trim().slice(0, MAX_SUMMARY);
+      store.set(userId, { summary: summary || session.summary, messages: session.messages.slice(-KEEP) });
+      return true;
+    },
+    async clear(userId) {
+      store.delete(userId);
     },
   };
 };

@@ -190,6 +190,27 @@ describe("POST /api/v2/chat", () => {
     expect((await deps.memories.list("player-1")).map((m) => m.text)).toEqual(["Base at 120 64 -300"]);
   });
 
+  test("the session summary reaches the prompt, and askx requests land in the session", async () => {
+    const { model, prompts } = scripted([
+      [...text('{"is_sequence":false,"commands":["give @s bread 16"],"error":null}'), finish()],
+      [...text("You got bread."), finish()],
+    ]);
+    const deps = testDeps(model);
+    // Fill the session past the fold point and fold it, as a long chat would.
+    for (let i = 0; i <= 12; i++) {
+      await deps.history.append("player-1", { role: "user", content: `q${i}` }, { role: "assistant", content: `a${i}` });
+    }
+    await deps.history.compact("player-1", async () => "The player is building a beacon.");
+    const base = start(deps);
+    await readSse(await chat(base, { mode: "askx", message: "give me bread" }));
+    await readSse(await chat(base, { message: "what did you just give me?" }));
+    const second = JSON.stringify(prompts[1]);
+    expect(second).toContain("/askx give me bread");
+    expect(second).toContain("Commands: give @s bread 16");
+    expect(second).toContain("The player is building a beacon.");
+    expect(second).not.toContain('"q0"');
+  });
+
   test("history carries over between questions", async () => {
     const { model, prompts } = scripted([[...text("Ender pearls."), finish()], [...text("Twelve."), finish()]]);
     const base = start(testDeps(model));

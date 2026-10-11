@@ -11,9 +11,10 @@ import type { Memory, MemoryStore } from "../infrastructure/memory/memory";
 import type { ModelFactory } from "../infrastructure/providers/openrouter/openrouter.client";
 import { logger } from "../shared/logging/logger";
 import { API_ERRORS, ApiFailure, apierror } from "../shared/types/errors";
-import type { RunContext, RunResult, Usage } from "./agent.types";
+import type { CommandsResult, RunContext, RunResult, Usage } from "./agent.types";
 import { commandsFromText, commandsSchema, validateCommands } from "./commands";
 import { systemPrompt } from "./prompts";
+import { summarizeWith } from "./summary";
 
 export interface BuddyDeps {
   models: ModelFactory;
@@ -68,6 +69,23 @@ export const classify = (error: unknown, signal?: AbortSignal): ApiFailure => {
   return new ApiFailure(apierror(API_ERRORS.AI_REQUEST_FAILED, text));
 };
 
+/** Adds this exchange to the session; askx requests go in with a slash so later answers know what was run. */
+const record = (context: RunContext, deps: BuddyDeps, answer: string) =>
+  deps.history.append(
+    context.userId,
+    { role: "user", content: context.mode === "askx" ? `/askx ${context.message}` : context.message },
+    { role: "assistant", content: answer },
+  );
+
+const compact = async (context: RunContext, deps: BuddyDeps) => {
+  try {
+    const model = deps.models({ token: context.token, platform: context.platform });
+    if (await deps.history.compact(context.userId, summarizeWith(model))) logger.info(`Folded the session of ${context.userId}`);
+  } catch (error) {
+    logger.warn(`Couldn't fold the session of ${context.userId}: ${String(error)}`);
+  }
+};
+
 /**
  * One question to MCBuddy: builds the agent for this player, streams its work as protocol
  * events, and returns the final answer (or commands for askx).
@@ -79,10 +97,11 @@ export const runBuddy = async (context: RunContext, deps: BuddyDeps, options: Ru
     const model = deps.models({ token: context.token, platform: context.platform });
     const tools = offeredTools(context.tools, context.player?.op === true);
     const memories = await loadMemories(deps, context.userId);
-    const agent = new Agent({ id: "mcbuddy", name: "MCBuddy", instructions: systemPrompt({ ...context, tools }, { memories }), model });
     // askx turns one request into commands; earlier chat would only confuse it, as in v1.
-    const history = context.mode === "ask" ? await deps.history.load(context.userId) : [];
-    const messages: ModelMessage[] = [...history, { role: "user", content: context.message }];
+    const session = context.mode === "ask" ? await deps.history.load(context.userId) : { messages: [] };
+    const instructions = systemPrompt({ ...context, tools }, { memories, summary: session.summary });
+    const agent = new Agent({ id: "mcbuddy", name: "MCBuddy", instructions, model });
+    const messages: ModelMessage[] = [...session.messages, { role: "user", content: context.message }];
 
     emit({ event: "start", data: { run_id: runId, model: model.modelId } });
 
@@ -150,19 +169,29 @@ export const runBuddy = async (context: RunContext, deps: BuddyDeps, options: Ru
     let result: RunResult;
     if (context.mode === "askx") {
       const object = (await stream.object.catch(() => undefined)) ?? commandsFromText(text);
-      const commands = validateCommands(object);
+      let commands: CommandsResult;
+      try {
+        commands = validateCommands(object);
+      } catch (error) {
+        if (error instanceof ApiFailure && error.code === API_ERRORS.AI_ERROR.code) {
+          await record(context, deps, `Refused: ${error.message.replace(/^AI returned an error: /, "")}`);
+        }
+        throw error;
+      }
+      await record(context, deps, `Commands: ${commands.commands.join("; ")}`);
       emit({ event: "commands", data: commands });
       result = { answer: "", commands, usage, durationMs: Date.now() - started };
     } else {
       const answer = text.trim();
       if (!answer) throw new ApiFailure(apierror(API_ERRORS.NO_AI_RESPONSE));
-      await deps.history.append(context.userId, { role: "user", content: context.message });
-      await deps.history.append(context.userId, { role: "assistant", content: answer });
+      await record(context, deps, answer);
       result = { answer, usage, durationMs: Date.now() - started };
     }
     emit({ event: "usage", data: usage });
     emit({ event: "done", data: { answer: result.answer, duration_ms: result.durationMs } });
     logger.info(`Run ${runId} (${context.mode}/${context.platform}) done in ${result.durationMs} ms, ${usage.output_tokens} tokens`);
+    // After done: the player has the answer, and the summary can take its time.
+    void compact(context, deps);
     return result;
   } catch (error) {
     const failure = classify(error, signal);
