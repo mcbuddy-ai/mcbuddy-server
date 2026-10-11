@@ -68,7 +68,9 @@ Answers: `200 { "accepted": true }`, `404` unknown or finished run or call, `409
 | `get_villager_trades` | – | the villager or wandering trader under the crosshair (8 blocks): profession, level, trades [{buy: [{id, count}], sell: {id, count, enchantments?}, uses, max_uses}] |
 | `point_to` | `{ "x": 0, "y": 64, "z": 0, "label"?: "base" }` | Points the player's compass at the spot (same dimension) and draws a short particle trail toward it that only this player sees. Returns distance and direction |
 | `sort_inventory` | – | Merges stacks and sorts the main inventory (slots 9–35) by item; the hotbar, armor, and offhand stay put. Returns how many stacks were merged |
-| `set_reminder` | `{ "minutes": 1–120, "text": "≤ 100 chars" }` | Reminds the player in chat with a sound after the delay; at most 3 pending per player; lost on a server restart |
+| `set_reminder` | `{ "minutes": 1–120, "text": "≤ 100 chars" }` | Reminds the player in chat with a sound after the delay and returns the reminder's `id`; at most 10 pending per player by default (`tools.reminders.max_pending`); lost on a server restart or when the player leaves |
+| `get_reminders` | – | the player's pending reminders, soonest first: [{id, text, minutes_left, due_at}] |
+| `cancel_reminder` | `{ "id": "k3f9" }` or `{ "all": true }` | Cancels one reminder or all of them; returns `{ cancelled }` |
 
 ### Operator tools
 
