@@ -7,8 +7,12 @@ export const MAX_COMMANDS = 12;
 export const commandsSchema = z.object({
   is_sequence: z.boolean().describe("true when the commands must run in order"),
   commands: z.array(z.string()).describe("Commands without a leading slash; empty when refusing"),
-  error: z.string().optional().describe("Why the request can't be done, in the player's language"),
+  // Nullable, not optional: strict structured output (OpenAI) wants every key listed as required.
+  error: z.string().nullable().describe("Why the request can't be done, in the player's language; null when there are commands"),
 });
+
+// Reading back is lenient: text fallbacks and older prompts may leave `error` out.
+const readSchema = commandsSchema.extend({ error: z.string().nullish() });
 
 // The plugin has its own block list; this is the backend's half of the same guard.
 const ADMIN_COMMANDS = new Set([
@@ -20,7 +24,7 @@ const name = (command: string) => command.split(/\s+/, 1)[0].toLowerCase().repla
 
 /** Checks what the model proposed and turns a refusal into an AI_ERROR the player sees. */
 export const validateCommands = (raw: unknown): CommandsResult => {
-  const parsed = commandsSchema.safeParse(raw);
+  const parsed = readSchema.safeParse(raw);
   if (!parsed.success) return fail(API_ERRORS.INVALID_FORMAT, "the model returned no command list");
   const { is_sequence, error } = parsed.data;
   const commands = parsed.data.commands.map((c) => c.trim().replace(/^\//, "")).filter(Boolean);

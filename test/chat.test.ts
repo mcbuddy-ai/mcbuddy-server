@@ -124,7 +124,7 @@ describe("POST /api/v2/chat", () => {
   });
 
   test("askx returns validated commands instead of text", async () => {
-    const { model } = scripted([[...text('{"is_sequence":false,"commands":["/give @s diamond_sword"]}'), finish()]]);
+    const { model } = scripted([[...text('{"is_sequence":false,"commands":["/give @s diamond_sword"],"error":null}'), finish()]]);
     const base = start(testDeps(model));
     const events = await readSse(await chat(base, { mode: "askx", message: "give me a sword" }));
     expect(events.map((e) => e.event)).toEqual(["start", "commands", "usage", "done"]);
@@ -187,7 +187,7 @@ describe("v1 compatibility", () => {
   });
 
   test("/api/askx returns isSequence and commands", async () => {
-    const { model } = scripted([[...text('{"is_sequence":true,"commands":["time set day","weather clear"]}'), finish()]]);
+    const { model } = scripted([[...text('{"is_sequence":true,"commands":["time set day","weather clear"],"error":null}'), finish()]]);
     const base = start(testDeps(model));
     const response = await fetch(`${base}/api/askx`, { method: "POST", body: JSON.stringify({ action: "make it sunny day" }) });
     expect((await response.json()) as any).toMatchObject({ isSequence: true, commands: ["time set day", "weather clear"], status: "success" });
