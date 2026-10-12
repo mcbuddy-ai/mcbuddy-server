@@ -14,6 +14,7 @@ import { API_ERRORS, ApiFailure, apierror } from "../shared/types/errors";
 import type { CommandsResult, RunContext, RunResult, Usage } from "./agent.types";
 import { commandsFromText, commandsSchema, validateCommands } from "./commands";
 import { systemPrompt } from "./prompts";
+import { localStamp } from "./time";
 import { summarizeWith } from "./summary";
 
 export interface BuddyDeps {
@@ -69,11 +70,15 @@ export const classify = (error: unknown, signal?: AbortSignal): ApiFailure => {
   return new ApiFailure(apierror(API_ERRORS.AI_REQUEST_FAILED, text));
 };
 
+/** The question as the model reads it: Minecraft questions start with the player's real date and time. */
+const question = (context: RunContext): string =>
+  context.platform === "minecraft" && context.mode === "ask" ? `${localStamp(context.timezone)} ${context.message}` : context.message;
+
 /** Adds this exchange to the session; askx requests go in with a slash so later answers know what was run. */
-const record = (context: RunContext, deps: BuddyDeps, answer: string) =>
+const record = (context: RunContext, deps: BuddyDeps, answer: string, asked: string) =>
   deps.history.append(
     context.userId,
-    { role: "user", content: context.mode === "askx" ? `/askx ${context.message}` : context.message },
+    { role: "user", content: context.mode === "askx" ? `/askx ${context.message}` : asked },
     { role: "assistant", content: answer },
   );
 
@@ -101,7 +106,8 @@ export const runBuddy = async (context: RunContext, deps: BuddyDeps, options: Ru
     const session = context.mode === "ask" ? await deps.history.load(context.userId) : { messages: [] };
     const instructions = systemPrompt({ ...context, tools }, { memories, summary: session.summary });
     const agent = new Agent({ id: "mcbuddy", name: "MCBuddy", instructions, model });
-    const messages: ModelMessage[] = [...session.messages, { role: "user", content: context.message }];
+    const asked = question(context);
+    const messages: ModelMessage[] = [...session.messages, { role: "user", content: asked }];
 
     emit({ event: "start", data: { run_id: runId, model: model.modelId } });
 
@@ -174,17 +180,17 @@ export const runBuddy = async (context: RunContext, deps: BuddyDeps, options: Ru
         commands = validateCommands(object);
       } catch (error) {
         if (error instanceof ApiFailure && error.code === API_ERRORS.AI_ERROR.code) {
-          await record(context, deps, `Refused: ${error.message.replace(/^AI returned an error: /, "")}`);
+          await record(context, deps, `Refused: ${error.message.replace(/^AI returned an error: /, "")}`, asked);
         }
         throw error;
       }
-      await record(context, deps, `Commands: ${commands.commands.join("; ")}`);
+      await record(context, deps, `Commands: ${commands.commands.join("; ")}`, asked);
       emit({ event: "commands", data: commands });
       result = { answer: "", commands, usage, durationMs: Date.now() - started };
     } else {
       const answer = text.trim();
       if (!answer) throw new ApiFailure(apierror(API_ERRORS.NO_AI_RESPONSE));
-      await record(context, deps, answer);
+      await record(context, deps, answer, asked);
       result = { answer, usage, durationMs: Date.now() - started };
     }
     emit({ event: "usage", data: usage });

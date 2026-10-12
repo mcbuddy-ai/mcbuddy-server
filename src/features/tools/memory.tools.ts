@@ -14,7 +14,7 @@ export const memoryTools = (memories: MemoryStore, options: { userId: string; em
   return {
     remember: createTool({
       id: "remember",
-      description: `Saves a lasting fact about the asking player for future conversations: their goals, what they have done, how they like answers. Places with coordinates go in the notebook (add_note) instead. One short fact per call, up to ${MAX_MEMORY_CHARS} characters, at most ${MAX_MEMORIES} in total. Never secrets, passwords, or other players' data.`,
+      description: `Saves a lasting fact about the asking player for future conversations: their goals, what they have done, how they like answers. Never for places: anything about where something is or where the player stands goes in the notebook (add_note), which records the coordinates. One short fact per call, up to ${MAX_MEMORY_CHARS} characters, at most ${MAX_MEMORIES} in total. Never secrets, passwords, or other players' data.`,
       inputSchema: z.object({ text: z.string().min(3).max(MAX_MEMORY_CHARS) }),
       execute: async ({ text }) => {
         const report = status("remember", { text });

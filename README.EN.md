@@ -37,6 +37,10 @@ Three tools run on the backend:
 
 The agent answers in the language of the question. The game locale only matters when the message has no clear language.
 
+The backend puts the player’s real date and time in front of each Minecraft question, for example `[Mon, 12 Oct 2026, 23:42 Europe/Moscow]`. The plugin sends the time zone. The time goes into the message, not the system prompt, so the provider’s prompt cache keeps working.
+
+Besides the text, the agent puts buttons under its answer (`add_buttons`): options for an ambiguous question, a next question, the way to coordinates, and the recipe, enchanting, and villager windows. When the player asks for detail, it writes the answer into a book (`write_book`), and it sets goals like “collect 16 diamonds” as a bar at the top of the screen (`set_goal`).
+
 ### Memory
 
 Each player has a session and a lasting memory. The session lives in Redis for 24 hours after the last question. It holds the last 8 to 12 questions verbatim and a short summary of everything before them. The model writes that summary after the answer, so the player never waits for it. `/askx` requests land in the session as one line: what was asked and which commands came out.

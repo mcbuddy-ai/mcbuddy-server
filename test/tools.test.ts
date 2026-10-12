@@ -29,4 +29,12 @@ describe("offered game tools", () => {
     expect(GAME_TOOLS).toEqual(expect.arrayContaining(added));
     expect(offeredTools(added, false)).toEqual(added);
   });
+
+  test("the 2.3 tools are for everyone", () => {
+    const added: GameToolName[] = [
+      "locate_biome", "get_death_info", "find_villagers", "get_anvil_plan", "add_buttons", "write_book",
+      "set_goal", "get_goals", "cancel_goal", "set_timezone",
+    ];
+    expect(offeredTools(added, false)).toEqual(added);
+  });
 });

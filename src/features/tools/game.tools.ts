@@ -93,7 +93,7 @@ const definitions = {
   },
   add_note: {
     description:
-      "Writes a note in the asking player's notebook, tied to a place: by default where they stand (here), or the given x, y, z and dimension. For things on this server, like a villager that sells arrows or an iron farm.",
+      "Writes a note in the asking player's notebook, tied to a place: by default where they stand (here), or the given x, y, z and dimension. Use it whenever the player asks to remember, note, or mark something about a place (“запомни, что у меня тут…”, “remember my base is here”): the plugin records the coordinates, the remember tool would lose them.",
     input: z.object({
       text: z.string().min(1).max(200),
       here: z.boolean().optional().describe("Pin to where the player stands; the default when no coordinates are given"),
@@ -177,6 +177,92 @@ const definitions = {
     description:
       "The farm around the asking player: crops by type and growth, water, animals by type, spawning platforms and light. Raw facts for estimating a farm's rate.",
     input: z.object({ radius: z.number().int().min(1).max(16).optional() }),
+  },
+  locate_biome: {
+    description:
+      "The nearest biome of a type to the asking player (cherry_grove, mushroom_fields, badlands…), with coordinates, distance, and direction, within the radius the server allows. A part of a name works: cherry finds cherry_grove.",
+    input: z.object({ biome: z.string().min(1).max(64) }),
+  },
+  get_death_info: {
+    description:
+      "Where the asking player last died, how long ago, what they dropped, whether the area is loaded, and how many of their items still lie there with the seconds until the first one vanishes. Items despawn after 5 minutes, but only while the area is loaded.",
+    input: z.object({}),
+  },
+  find_villagers: {
+    description:
+      "Villagers and wandering traders around the asking player, nearest first: profession, level, coordinates, distance, direction, and trades (price, what they sell with the enchantment for books, trades left). item keeps only those who sell or buy it, such as enchanted_book; profession filters by job.",
+    input: z.object({
+      item: z.string().max(64).optional(),
+      profession: z.string().max(32).optional().describe("librarian, armorer, fletcher…"),
+      radius: z.number().int().min(4).max(64).optional(),
+    }),
+  },
+  get_anvil_plan: {
+    description:
+      "The cheapest order to put enchanted books on the item in the asking player's hand: each anvil step with its level cost, the total, and whether a step hits Too Expensive (40+). Counts the item's prior work penalty and checks conflicts.",
+    input: z.object({
+      enchantments: z.record(z.string().max(64), z.number().int().min(1).max(10)).describe("Enchantment id to level, such as { sharpness: 5, mending: 1 }"),
+    }),
+  },
+  add_buttons: {
+    description:
+      "Clickable buttons under your answer, at most 5. ask: the player clicks and asks question (label is one word in their language, like Да or Хочу). point: shows the way to x, y, z. note: saves text with x, y, z in their notebook. recipe: opens the crafting recipe window for item. enchants: opens the enchanting window for the item in hand. villagers: opens the window of villagers around, optionally only trades with item.",
+    input: z.object({
+      buttons: z
+        .array(
+          z.object({
+            type: z.enum(["ask", "point", "note", "recipe", "enchants", "villagers"]),
+            label: z.string().min(1).max(24).describe("A word or two in the player's language"),
+            question: z.string().max(200).optional().describe("ask: the full question the click asks"),
+            x: z.number().int().optional(),
+            y: z.number().int().optional(),
+            z: z.number().int().optional(),
+            dimension: z.string().max(32).optional(),
+            text: z.string().max(200).optional().describe("note: what to write"),
+            item: z.string().max(64).optional().describe("recipe or villagers: item id"),
+          }),
+        )
+        .min(1)
+        .max(5),
+    }),
+  },
+  write_book: {
+    description:
+      "Writes a long answer into a book the player can open or take for free; buttons for both appear under your answer. Only when the player explicitly asks for a detailed or long explanation. Plain text with line breaks; & color codes work.",
+    input: z.object({ title: z.string().min(1).max(32), text: z.string().min(1).max(8000) }),
+  },
+  set_goal: {
+    description:
+      "Sets a goal with a boss bar for the asking player; the bar fills from what happens after now, and a sound and a message mark the end. kind: stat (any Minecraft statistic: mine_block with item, kill_entity with entity, craft_item, use_item, fish_caught, animals_bred, traded_with_villager, item_enchanted, walk_one_cm in blocks…), pickup (pick up target of item; their own dropped items don't count), level (reach level target), advancement (story/mine_diamond…), reach (get within radius of x, z), biome (stand in biome), dimension (enter nether or the_end). title is the bar text in their language; pick color and style to fit.",
+    input: z.object({
+      kind: z.enum(["stat", "pickup", "level", "advancement", "reach", "biome", "dimension"]),
+      title: z.string().min(1).max(40),
+      target: z.number().int().min(1).max(1_000_000).optional().describe("How many, or the level; not needed for advancement, reach, biome, dimension"),
+      statistic: z.string().max(64).optional(),
+      item: z.string().max(64).optional(),
+      entity: z.string().max(64).optional(),
+      advancement: z.string().max(128).optional(),
+      x: z.number().int().optional(),
+      z: z.number().int().optional(),
+      radius: z.number().int().min(2).max(200).optional(),
+      biome: z.string().max(64).optional(),
+      dimension: z.string().max(32).optional(),
+      color: z.enum(["pink", "blue", "red", "green", "yellow", "purple", "white"]).optional(),
+      style: z.enum(["solid", "segmented_6", "segmented_10", "segmented_12", "segmented_20"]).optional(),
+    }),
+  },
+  get_goals: {
+    description: "The asking player's goals with id, title, progress, and target.",
+    input: z.object({}),
+  },
+  cancel_goal: {
+    description: "Removes one of the asking player's goals by id (from get_goals), or all of them with all: true.",
+    input: z.object({ id: z.string().min(1).max(32).optional(), all: z.boolean().optional() }),
+  },
+  set_timezone: {
+    description:
+      "Remembers the asking player's time zone as an IANA id (Europe/Moscow, Asia/Yekaterinburg, Asia/Novosibirsk…) when they say where they live or that the time you see is wrong.",
+    input: z.object({ zone: z.string().min(1).max(64) }),
   },
 } as const;
 

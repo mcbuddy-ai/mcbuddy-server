@@ -212,6 +212,13 @@ describe("POST /api/v2/chat", () => {
     expect(second).not.toContain('"q0"');
   });
 
+  test("questions carry the player's real time", async () => {
+    const { model, prompts } = scripted([[...text("Late."), finish()]]);
+    const base = start(testDeps(model));
+    await readSse(await chat(base, { message: "is it late?", timezone: "Asia/Yekaterinburg" }));
+    expect(JSON.stringify(prompts[0])).toMatch(/\[\w{3}, \d{1,2} \w{3} \d{4}, \d{2}:\d{2} Asia\/Yekaterinburg\] is it late\?/);
+  });
+
   test("history carries over between questions", async () => {
     const { model, prompts } = scripted([[...text("Ender pearls."), finish()], [...text("Twelve."), finish()]]);
     const base = start(testDeps(model));

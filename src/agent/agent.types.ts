@@ -20,6 +20,8 @@ export interface RunContext {
   userId: string;
   message: string;
   locale?: string;
+  /** The asker's IANA time zone from the plugin; their real time goes in front of each question. */
+  timezone?: string;
   player?: PlayerInfo;
   server?: ServerInfo;
   /** Client tools the plugin offers for this run; empty for v1 requests. */

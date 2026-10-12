@@ -15,11 +15,14 @@ Headers: `Content-Type: application/json`, `Accept: text/event-stream`, optional
   "platform": "minecraft",
   "user_id": "5627dd98-e6be-3c21-b8a8-e92344183641",
   "locale": "ru_ru",
+  "timezone": "Europe/Moscow",
   "player": { "name": "Steve", "uuid": "5627dd98-…", "op": false },
   "server": { "software": "Paper", "version": "26.3", "plugin_version": "2.0.0" },
   "tools": ["get_player_status", "get_inventory", "get_surroundings", "get_target", "get_world", "get_statistics", "get_advancements", "get_recipes", "locate_structure", "get_server"]
 }
 ```
+
+`timezone` is the asker's IANA time zone (optional, since 2.3). The backend puts their real date and time in front of each `ask` question, as `[Mon, 12 Oct 2026, 23:42 Europe/Moscow] question`, and keeps it in the session history; without it the time is UTC.
 
 `tools` lists the client tools this plugin offers (server admins can switch some off). The backend registers only those for this run. The plugin lists operator tools only when the asking player is an operator, and the backend drops them anyway when `player.op` is false.
 
@@ -87,6 +90,16 @@ Answers: `200 { "accepted": true }`, `404` unknown or finished run or call, `409
 | `get_light_spawn_check` | `{ "radius"?: 1–16 }` default 8 | dark_spots where hostile mobs can spawn (solid floor, two free blocks, block light 0, within ±6 height) and the 10 nearest offsets |
 | `get_brewing_items` | – | brewing items in the inventory (potions with their type) and up to 4 brewing stands within 8 blocks: offsets, fuel_level, seconds_left, ingredient, fuel, bottles |
 | `scan_farm` | `{ "radius"?: 1–16 }` default 8 | crops by type {total, ripe, max_age, by_age}, farmland hydrated/dry, composter_levels, hoppers, spawners by mob, animals by type, within ±4 height |
+| `locate_biome` | `{ "biome": "cherry_grove" }` | nearest biome within `tools.locate_biome_radius` blocks (2048 by default), searched like `/locate biome`; a part of a name matches: `{ found, biome, x, y, z, distance, direction }` |
+| `get_death_info` | – | the last death: place {x, y, z, dimension, distance?, direction?}, minutes_ago, kept_inventory, dropped {id: count}, dropped_experience, area_loaded, items_on_ground and seconds_until_first_despawn when loaded. The drops are known only since the last plugin start |
+| `find_villagers` | `{ "item"?: "enchanted_book", "profession"?: "librarian", "radius"?: 4–64 }` | up to 10 traders nearest first: profession, level, x, y, z, distance, direction, trades [{buy, sell (with `book` {enchantment: level} for books), left}] |
+| `get_anvil_plan` | `{ "enchantments": { "sharpness": 5, "mending": 1 } }` | for the item in hand: item_repair_cost, steps [{left, right, levels}] where pieces are `item` or `<enchantment> <level>`, total_levels, too_expensive |
+| `add_buttons` | `{ "buttons": [{ "type", "label", "question"?, "x"?, "y"?, "z"?, "dimension"?, "text"?, "item"? }] }` | Puts up to 5 buttons under the answer. `ask` asks `question` on click; `point` shows the way to x, y, z; `note` saves `text` with x, y, z; `recipe` opens the recipe window for `item`; `enchants` the enchanting window for the item in hand; `villagers` the villager window, optionally for `item`. Returns `{ added, total }` |
+| `write_book` | `{ "title": "≤ 32", "text": "≤ 8000" }` | Writes the text into a book and adds `[Открыть книгу]` and `[Взять книгу]` under the answer; returns `{ pages }` |
+| `set_goal` | `{ "kind", "title", "target"?, "statistic"?, "item"?, "entity"?, "advancement"?, "x"?, "z"?, "radius"?, "biome"?, "dimension"?, "color"?, "style"? }` | A boss bar goal counted from now; kinds `stat`, `pickup`, `level`, `advancement`, `reach`, `biome`, `dimension`. Statistics in centimeters take `target` in blocks. Ends with a sound and a chat line. Returns `{ id, kind, title, progress, target }` |
+| `get_goals` | – | the player's goals: [{id, kind, title, progress, target}] |
+| `cancel_goal` | `{ "id": "k3f9" }` or `{ "all": true }` | `{ cancelled }` |
+| `set_timezone` | `{ "zone": "Asia/Yekaterinburg" }` | Stores the player's IANA zone for later requests; returns `{ zone, local_time }` |
 
 ### Operator tools
 
