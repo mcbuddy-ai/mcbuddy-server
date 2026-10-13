@@ -11,7 +11,7 @@ const definitions = {
   },
   get_inventory: {
     description:
-      "The overview of the asking player's inventory: main slots with item ids, counts, custom names, enchantments, durability, the enchantments an enchanted book holds (stored_enchantments), potion types, armor trims, and how many items a shulker box or bundle holds (contents_count); armor; offhand. Pass include_enderchest to add the ender chest. For attack numbers, potion durations, or what's inside a box, use inspect_item.",
+      "The overview of the asking player's inventory: main slots with item ids, counts, custom names, enchantments, durability, the enchantments an enchanted book holds (stored_enchantments), potion types, armor trims, and how many items a shulker box or bundle holds (contents_count); armor; offhand; and inside_containers, the totals by id of what those shulker boxes and bundles hold, so count them when asked how many of something the player has. Pass include_enderchest to add the ender chest. For attack numbers, potion durations, or what's inside a box, use inspect_item.",
     input: z.object({ include_enderchest: z.boolean().optional() }),
   },
   get_surroundings: {
@@ -118,7 +118,7 @@ const definitions = {
   },
   get_container: {
     description:
-      "What is inside the chest, barrel, shulker box, or other container the asking player is looking at: item counts by id. With detail, every stack by slot with names, enchantments, stored enchantments, durability, potion types, trims, and contents_count, as get_inventory shows them.",
+      "What is inside the chest, barrel, shulker box, or other container the asking player is looking at: item counts by id, plus what shulker boxes and bundles inside it hold. With detail, every stack by slot with names, enchantments, stored enchantments, durability, potion types, trims, and contents_count, as get_inventory shows them.",
     input: z.object({
       detail: z.boolean().optional().describe("List each stack with its slot instead of counts by id; use it to compare or pick items"),
     }),
