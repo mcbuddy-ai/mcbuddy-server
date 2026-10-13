@@ -28,7 +28,7 @@ The build bundles `src/features/tools/calc.worker.ts` next to the entrypoint; `e
 ## Deploying: a push to master is a release
 
 - Every push to `master` that touches the server builds `ghcr.io/mcbuddy-ai/mcbuddy-server:latest`, and **production pulls `latest` by itself**. Pushing is deploying: test first and get the owner's go-ahead.
-- A changed `.version` also creates a GitHub release. Bump it only when the owner asks.
+- Releases are made by hand, only when the owner asks. Add a “## X.Y.Z” section to CHANGELOG.md, push, then run `gh workflow run release.yml -R mcbuddy-ai/mcbuddy-server -f version=X.Y.Z` (its `changelog` field overrides the section; one of the two must be there). It tests, pushes `ghcr.io/mcbuddy-ai/mcbuddy-server:X.Y.Z`, tags `vX.Y.Z`, and creates the GitHub release. Nothing in the repo holds the version. Never delete or re-tag a published release.
 - Production needs a tool-capable model in `OPENROUTER_API_MODEL` (not `perplexity/sonar*`; that one is `SEARCH_MODEL`).
 
 ## Moonlands
