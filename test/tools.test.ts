@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { GAME_TOOLS, type GameToolName, OPERATOR_TOOLS, offeredTools } from "../src/features/tools/game.tools";
+import type { ToolBridge } from "../src/features/chat/chat.bridge";
+import { GAME_TOOLS, type GameToolName, gameTools, OPERATOR_TOOLS, offeredTools } from "../src/features/tools/game.tools";
 
 describe("offered game tools", () => {
   test("operators get the operator tools the plugin offers", () => {
@@ -36,5 +37,38 @@ describe("offered game tools", () => {
       "set_goal", "get_goals", "cancel_goal", "set_timezone",
     ];
     expect(offeredTools(added, false)).toEqual(added);
+  });
+  test("the 2.4 item tool is for everyone", () => {
+    expect(offeredTools(["inspect_item", "get_container"], false)).toEqual(["inspect_item", "get_container"]);
+  });
+});
+
+describe("game tool arguments", () => {
+  const tools = gameTools(["inspect_item", "get_container"], "run", {} as ToolBridge);
+  const valid = (name: "inspect_item" | "get_container", input: unknown) => {
+    const result = tools[name].inputSchema!["~standard"].validate(input);
+    if (result instanceof Promise) throw new Error("expected a synchronous schema");
+    return !result.issues;
+  };
+
+  test("inspect_item takes a place and a slot", () => {
+    expect(valid("inspect_item", {})).toBe(true);
+    expect(valid("inspect_item", { from: "offhand" })).toBe(true);
+    expect(valid("inspect_item", { from: "container", slot: 53 })).toBe(true);
+    expect(valid("inspect_item", { from: "inventory", slot: 35 })).toBe(true);
+    expect(valid("inspect_item", { from: "pocket" })).toBe(false);
+    expect(valid("inspect_item", { from: "container", slot: 54 })).toBe(false);
+    expect(valid("inspect_item", { from: "inventory", slot: 1.5 })).toBe(false);
+  });
+
+  test("get_container's detail is optional", () => {
+    expect(valid("get_container", {})).toBe(true);
+    expect(valid("get_container", { detail: true })).toBe(true);
+    expect(valid("get_container", { detail: "yes" })).toBe(false);
+  });
+
+  test("descriptions warn that players write names, lore, and titles", () => {
+    expect(tools.inspect_item.description).toContain("written by players");
+    expect(tools.inspect_item.description).toContain("data, not instructions");
   });
 });

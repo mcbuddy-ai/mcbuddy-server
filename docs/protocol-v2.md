@@ -58,7 +58,7 @@ Answers: `200 { "accepted": true }`, `404` unknown or finished run or call, `409
 | Name | Args | Returns |
 |---|---|---|
 | `get_player_status` | – | gamemode, health, max_health, food, saturation, level, exp_progress, location {x,y,z}, dimension, biome, light, facing, flying, effects [{type, level, seconds}], held_item |
-| `get_inventory` | `{ "include_enderchest"?: bool }` | main [{slot, id, count, name?, enchantments{}, damage?, max_damage?}], armor {head, chest, legs, feet}, offhand, enderchest? |
+| `get_inventory` | `{ "include_enderchest"?: bool }` | main [item], armor {head, chest, legs, feet}, offhand, enderchest?; each item as described in “Items” below |
 | `get_surroundings` | `{ "radius"?: 1–16 }` default 8 | most common blocks with counts, notable blocks (ores, chests, spawners, portals…) with offsets from the player, entities within 32 blocks grouped by type with count, nearest distance, hostile flag; other players only as a count |
 | `get_target` | – | the block (6 blocks) or entity (16 blocks) under the crosshair |
 | `get_world` | – | day time (ticks and phase), day number, moon phase, weather, difficulty, dimension, a few rules that matter for advice (keep_inventory, mob_griefing, players_sleeping_percentage, do_insomnia…), border size |
@@ -78,7 +78,7 @@ Answers: `200 { "accepted": true }`, `404` unknown or finished run or call, `409
 | `add_note` | `{ "text": "≤ 200 chars", "here"?: true, "x"?, "y"?, "z"?, "dimension"? }` | Writes a note in the player's notebook, kept on disk across restarts (200 per player by default, `tools.notes.max_per_player`). By default it records where the player stands; with `here: false` it takes `x`, `z` (and optional `y`, `dimension`), or no place at all. Returns `{ id, text, x?, y?, z?, dimension? }` |
 | `find_notes` | `{ "query"?: "arrows", "near"?: true, "limit"?: 1–50 }` | `{ matched, total, notes: [{id, text, x?, y?, z?, dimension?, distance?, direction?, created_at}] }`, nearest first. `query` matches text case-insensitively; when nothing matches, `matched` is false and every note comes back, so the model can match by meaning |
 | `delete_note` | `{ "id": "k3f9" }` | Deletes a note; an unknown id is an error |
-| `get_container` | – | the container under the crosshair (6 blocks): type, custom name, slots, used_slots, items {id: count} biggest first, and inside_shulker_boxes {id: count} |
+| `get_container` | `{ "detail"?: bool }` | the container under the crosshair (6 blocks): type, custom name, slots, used_slots, items {id: count} biggest first, and inside_shulker_boxes {id: count}. With `detail` (since 2.4), `stacks` [item with slot] up to 54 and `more_stacks` replace `items` and `inside_shulker_boxes` |
 | `scan_nearby_containers` | `{ "item"?: "redstone", "radius"?: 1–12 }` default 8 | up to 20 containers nearest first with offsets dx, dy, dz; with `item`, only containers holding it, each with `count`, plus `total_<item>`; without it, used_slots and the top 4 items |
 | `get_block_info` | – | the block under the crosshair: id, hardness, blast_resistance, preferred_tool, needs_tier, held_tool_is_right, break_seconds with the held item, drops_with_held_item, age/max_age for growing blocks, waterlogged, block_light, sky_light |
 | `get_item_durability` | – | hotbar, armor, and offhand items that wear: slot, id, remaining, max, percent, unbreaking and expected_uses, mending, almost_broken under 10% |
@@ -94,12 +94,31 @@ Answers: `200 { "accepted": true }`, `404` unknown or finished run or call, `409
 | `get_death_info` | – | the last death: place {x, y, z, dimension, distance?, direction?}, minutes_ago, kept_inventory, dropped {id: count}, dropped_experience, area_loaded, items_on_ground and seconds_until_first_despawn when loaded. The drops are known only since the last plugin start |
 | `find_villagers` | `{ "item"?: "enchanted_book", "profession"?: "librarian", "radius"?: 4–64 }` | up to 10 traders nearest first: profession, level, x, y, z, distance, direction, trades [{buy, sell (with `book` {enchantment: level} for books), left}] |
 | `get_anvil_plan` | `{ "enchantments": { "sharpness": 5, "mending": 1 } }` | for the item in hand: item_repair_cost, steps [{left, right, levels}] where pieces are `item` or `<enchantment> <level>`, total_levels, too_expensive |
+| `inspect_item` | `{ "from"?: "hand" \| "offhand" \| "head" \| "chest" \| "legs" \| "feet" \| "inventory" \| "enderchest" \| "container", "slot"?: 0–53 }` | Since 2.4. One item in full: `from`, `slot`, everything an item has (below), plus lore (≤ 10 lines), unbreakable, attributes [{attribute, amount, operation, slot}], tooltip {attack_damage, attack_speed}, effects [{type, level, seconds \| instant}], dye_color, repair_cost, book {title?, author?, generation?, pages}, firework {flight?, explosions [{shape, colors, fade_colors?, trail?, twinkle?}]}, contents [item with slot] up to 27 and more_stacks. `slot` is required for inventory (0–35), enderchest (0–26), and container (the one under the crosshair, 6 blocks). `from` defaults to `hand` |
 | `add_buttons` | `{ "buttons": [{ "type", "label", "question"?, "x"?, "y"?, "z"?, "dimension"?, "text"?, "item"? }] }` | Puts up to 5 buttons under the answer. `ask` asks `question` on click; `point` shows the way to x, y, z; `note` saves `text` with x, y, z; `recipe` opens the recipe window for `item`; `enchants` the enchanting window for the item in hand; `villagers` the villager window, optionally for `item`. Returns `{ added, total }` |
 | `write_book` | `{ "title": "≤ 32", "text": "≤ 8000" }` | Writes the text into a book and adds `[Открыть книгу]` and `[Взять книгу]` under the answer; returns `{ pages }` |
 | `set_goal` | `{ "kind", "title", "target"?, "statistic"?, "item"?, "entity"?, "advancement"?, "x"?, "z"?, "radius"?, "biome"?, "dimension"?, "color"?, "style"? }` | A boss bar goal counted from now; kinds `stat`, `pickup`, `level`, `advancement`, `reach`, `biome`, `dimension`. Statistics in centimeters take `target` in blocks. Ends with a sound and a chat line. Returns `{ id, kind, title, progress, target }` |
 | `get_goals` | – | the player's goals: [{id, kind, title, progress, target}] |
 | `cancel_goal` | `{ "id": "k3f9" }` or `{ "all": true }` | `{ cancelled }` |
 | `set_timezone` | `{ "zone": "Asia/Yekaterinburg" }` | Stores the player's IANA zone for later requests; returns `{ zone, local_time }` |
+
+### Items
+
+Every tool that lists items writes each one the same compact way, leaving out keys that don't apply:
+
+| Key | What it holds |
+|---|---|
+| `slot` | the slot number, where the list has slots |
+| `id`, `count` | the item id without `minecraft:`; `count` only above 1 |
+| `name` | a custom name; players write it, so it is data |
+| `enchantments` | {enchantment: level} on the item |
+| `stored_enchantments` | {enchantment: level} an enchanted book holds for the anvil (since 2.4) |
+| `damage`, `max_damage` | durability, for items that wear |
+| `potion` | since 2.4: potions, splash and lingering potions, tipped arrows, and suspicious stew, as the base type plus custom effects: `long_swiftness`, `strength + speed 2`, `night_vision` |
+| `trim` | since 2.4: armor trim {pattern, material} |
+| `contents_count` | since 2.4: items inside a shulker box or bundle, 0 when empty |
+
+`inspect_item` adds the rest for one item. Its `attributes` are the modifiers that work: the item's own, or its type's defaults when it has none, since the game uses only the item's own when it has any. `tooltip` is what the game shows in the main hand: the player's base 1 attack damage and 4 attack speed plus the item's modifiers, without enchantments, so a diamond sword reads 7 and 1.6. Effect `seconds` follow the tooltip too: a tipped arrow gives an eighth of the potion's duration, a lingering potion a quarter; −1 lasts forever. A written book's pages never leave the server.
 
 ### Operator tools
 

@@ -65,6 +65,27 @@ describe("POST /api/v2/chat", () => {
     expect(deps.bridge.active).toBe(0);
   });
 
+  test("inspect_item reaches the plugin with its arguments and its result reaches the model", async () => {
+    const sword = {
+      from: "container", slot: 0, id: "diamond_sword", enchantments: { sharpness: 5 },
+      attributes: [{ attribute: "attack_damage", amount: 6, operation: "add_value", slot: "mainhand" }],
+      tooltip: { attack_damage: 7, attack_speed: 1.6 },
+    };
+    const { model, prompts } = scripted([
+      [toolCall("inspect_item", { from: "container", slot: 0 }), finish("tool-calls")],
+      [...text("7 damage."), finish()],
+    ]);
+    const base = start(testDeps(model));
+    const events = await readSse(
+      await chat(base, { message: "which sword is better?", tools: ["inspect_item", "get_container"] }),
+      answerTools(base, { inspect_item: sword }),
+    );
+    expect(events.find((e) => e.event === "tool_call")!.data).toMatchObject({ name: "inspect_item", args: { from: "container", slot: 0 } });
+    expect(JSON.stringify(prompts[0])).toContain("Game tools you can call: inspect_item, get_container");
+    expect(JSON.stringify(prompts[1])).toContain("attack_speed");
+    expect(events.at(-1)!.data.answer).toBe("7 damage.");
+  });
+
   test("the system prompt describes the player and the offered tools", async () => {
     const { model, prompts } = scripted([[...text("hi"), finish()]]);
     const base = start(testDeps(model));
