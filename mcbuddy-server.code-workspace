@@ -1,0 +1,17 @@
+{
+  "folders": [
+    {
+      "name": "MCBuddy Server",
+      "path": "."
+    }
+  ],
+  "extensions": {
+    "recommendations": [
+      "oven.bun-vscode",
+      "redhat.vscode-yaml",
+      "github.vscode-github-actions",
+      "editorconfig.editorconfig",
+      "ms-azuretools.vscode-docker"
+    ]
+  }
+}
