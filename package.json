@@ -1,6 +1,6 @@
 {
-  "name": "mcbuddy-server",
-  "description": "🛠️⚡ Бэкенд для AI-ассистента MCBuddy — агент на Mastra с инструментами игры и веб-поиском, стриминг ответов в Minecraft, совместимый API для Telegram. 🌟",
+  "name": "allay-server",
+  "description": "🛠️⚡ Бэкенд для AI-помощника Allay — агент на Mastra с инструментами игры и веб-поиском, стриминг ответов в Minecraft, совместимый API для Telegram. 🌟",
   "main": "src/index.ts",
   "scripts": {
     "start": "bun run src/index.ts",

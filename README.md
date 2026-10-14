@@ -1,22 +1,22 @@
-# 🛠️ McBuddy Server
+# 🛠️ Allay Server
 
-[![AI Capable](https://img.shields.io/badge/AI-Capable-brightgreen?style=flat&logo=openai&logoColor=white)](https://github.com/mcbuddy-ai/mcbuddy-server)
-[![GitHub Release](https://img.shields.io/github/v/release/mcbuddy-ai/mcbuddy-server?style=flat&logo=github&color=blue)](https://github.com/mcbuddy-ai/mcbuddy-server/releases)
-[![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker&logoColor=white)](https://github.com/mcbuddy-ai/mcbuddy-server/pkgs/container/mcbuddy-server)
+[![AI Capable](https://img.shields.io/badge/AI-Capable-brightgreen?style=flat&logo=openai&logoColor=white)](https://github.com/allay-ai/server)
+[![GitHub Release](https://img.shields.io/github/v/release/allay-ai/server?style=flat&logo=github&color=blue)](https://github.com/allay-ai/server/releases)
+[![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker&logoColor=white)](https://github.com/allay-ai/server/pkgs/container/server)
 [![Bun](https://img.shields.io/badge/Bun-1.2.18-000000?style=flat&logo=bun&logoColor=white)](https://bun.sh/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-8.0.15-47A248?style=flat&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
 [![Redis](https://img.shields.io/badge/Redis-8.2-DC382D?style=flat&logo=redis&logoColor=white)](https://redis.io/)
 
-[Русская версия](https://github.com/mcbuddy-ai/mcbuddy-server/blob/master/README.RU.md)
+[Русская версия](https://github.com/allay-ai/server/blob/master/README.RU.md)
 
-**McBuddy Server** — 🛠️⚡ Backend for MCBuddy AI assistant — fast server on Bun with OpenRouter integration and web search, processing requests from Minecraft and Telegram. Provides REST API for getting AI answers about Minecraft with context and chat history. 🌟
+**Allay Server**—🛠️⚡ the backend for Allay, the AI helper named after the friendly mob that brings players what they need: a fast server on Bun with OpenRouter integration and web search, processing requests from Minecraft and Telegram. Provides REST API for getting AI answers about Minecraft with context and chat history. 🌟
 
-> **Note**: This is the main backend for the MCBuddy ecosystem, providing AI answers for all clients.
+> **Note**: This is the main backend for the Allay ecosystem, providing AI answers for all clients.
 
 ## How it works
 
-MCBuddy Server is a [Mastra](https://mastra.ai) agent on top of OpenRouter that answers players in Minecraft and in Telegram. In the game it sees what is going on with the player who asks: inventory, health, surroundings, the recipes of that server. It searches the web on its own when a question needs fresh facts.
+Allay Server is a [Mastra](https://mastra.ai) agent on top of OpenRouter that answers players in Minecraft and in Telegram. In the game it sees what is going on with the player who asks: inventory, health, surroundings, the recipes of that server. It searches the web on its own when a question needs fresh facts.
 
 The plugin opens one streaming request, `POST /api/v2/chat`, per question. The server answers with Server-Sent Events while the agent works:
 
@@ -41,7 +41,7 @@ The backend puts the player’s real date and time in front of each Minecraft qu
 
 Besides the text, the agent puts buttons under its answer (`add_buttons`): options for an ambiguous question, a next question, the way to coordinates, and the recipe, enchanting, and villager windows. When the player asks for detail, it writes the answer into a book (`write_book`), and it sets goals like “collect 16 diamonds” as a bar at the top of the screen (`goals`).
 
-The agent also knows MCBuddy itself. Asked “what can you do?” or “how do I turn off chat mode?”, it calls `get_buddy_guide`: the plugin answers with the commands this player may use, chat mode's prefixes, their settings, and what this server has switched on. So the agent never names a command that isn't there. `buddy_settings` turns chat mode and its tip on or off when the player asks in words. `get_server` lists the server's plugins with versions, so a question about graves or land claims gets an answer for the plugin that really runs.
+The agent also knows Allay itself. Asked “what can you do?” or “how do I turn off chat mode?”, it calls `get_allay_guide`: the plugin answers with the commands this player may use, chat mode's prefixes, their settings, and what this server has switched on. So the agent never names a command that isn't there. `allay_settings` turns chat mode and its tip on or off when the player asks in words. `get_server` lists the server's plugins with versions, so a question about graves or land claims gets an answer for the plugin that really runs.
 
 A question from `/askall` comes with `visibility: "public"`: every player online sees it and the answer. The prompt tells the agent not to reveal the asker's coordinates, notes, or memories, and the run goes without a book.
 
@@ -51,7 +51,7 @@ Each player has a session and a lasting memory. The session lives in Redis for 2
 
 Public questions have their own thread, one per server, apart from players' sessions. Each question there starts with the asker's name, so when a friend follows up on someone else's question, the agent knows what it's about. The thread lives 2 hours after the last question.
 
-The lasting memory sits in MongoDB and never expires. It's up to 30 short facts: where the base is, what the player is working on, how they like answers. The agent saves them itself and says so. The plugin gives players `/buddy new`, `/buddy memory`, and `/buddy forget` through the `/api/v2/users/{user_id}/…` endpoints described in the protocol.
+The lasting memory sits in MongoDB and never expires. It's up to 30 short facts: where the base is, what the player is working on, how they like answers. The agent saves them itself and says so. The plugin gives players `/allay new`, `/allay memory`, and `/allay forget` through the `/api/v2/users/{user_id}/…` endpoints described in the protocol.
 
 `POST /api/ask` and `POST /api/askx` work as before for the Telegram bot and plugins older than 2.0: the same agent without game tools, one JSON answer. The session is shared between both API versions.
 
@@ -101,8 +101,8 @@ Prompts live in [src/prompts](src/prompts) (`minecraft-ask.md`, `minecraft-askx.
 1. **Prepare configuration:**
    ```bash
    # Clone the repository
-   git clone https://github.com/mcbuddy-ai/mcbuddy-server
-   cd mcbuddy-server
+   git clone https://github.com/allay-ai/server
+   cd server
    
    # Copy environment variables example
    cp .env.sample .env
@@ -124,19 +124,19 @@ Prompts live in [src/prompts](src/prompts) (`minecraft-ask.md`, `minecraft-askx.
 
 4. **Check status:**
    ```bash
-   docker compose logs -f mcbuddy-server
+   docker compose logs -f allay-server
    ```
 
 ### Docker Compose with pre-built image
 
 If you want to use the pre-built image and manage MongoDB/Redis yourself:
 
-1. Declare the mcbuddy-server service in `docker-compose.yml`:
+1. Declare the allay-server service in `docker-compose.yml`:
 
 ```yaml
 services:
-  mcbuddy-server:
-    image: ghcr.io/mcbuddy-ai/mcbuddy-server:1.3.3
+  allay-server:
+    image: ghcr.io/allay-ai/server:4.0.0
     env_file: .env
     environment:
       MONGODB_URI: ${MONGODB_URI}
@@ -251,7 +251,7 @@ The move to Mastra and protocol v2 (the agent with tools, streaming, new prompts
 
 ## Related projects
 
-[MCBuddy Spigot](https://github.com/mcbuddy-ai/mcbuddy-spigot)—💬 brings MCBuddy into the game: ask the AI anything with `/ask`, right in the chat, in each player's language. 🎮
+[Allay for Minecraft](https://github.com/allay-ai/minecraft)—💬 brings Allay into the game: ask the AI anything with `/ask`, right in the chat, in each player's language. 🎮
 
 ## From the same author
 
@@ -263,6 +263,6 @@ The move to Mastra and protocol v2 (the agent with tools, streaming, new prompts
 
 ## License
 
-MIT, see [LICENSE](https://github.com/mcbuddy-ai/mcbuddy-server/blob/master/LICENSE).
+MIT, see [LICENSE](https://github.com/allay-ai/server/blob/master/LICENSE).
 
 > 🫡 Made by Pavel Erokhin (Павел Ерохин), aka mairwunnx.

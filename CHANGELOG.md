@@ -2,6 +2,14 @@
 
 The “Release” workflow takes the notes for a version from its section here, unless you type them into its `changelog` field.
 
+## 4.0.0
+
+MCBuddy Server is now **Allay Server**, for Allay 4.0. Stored data stays as it was: chat sessions and public threads in Redis, memories in MongoDB.
+
+- 🪽 **The agent is Allay.** The prompts introduce it as Allay, named after the friendly flying mob; it says so once when asked who it is, without playing the mob in its answers. “About MCBuddy” is “About Allay”, with `/allay` instead of `/buddy`.
+- 🧰 **`get_allay_guide` and `allay_settings`** replace `get_buddy_guide` and `buddy_settings`. A 3.x plugin still offers the old names: the model sees the new ones, and the call goes to the plugin under the name it offered.
+- `/api/health` says `"name": "Allay"`; the logs, the default `API_NAME` (`allay`), and the agent's id follow.
+
 ## 3.0.0
 
 For MCBuddy Spigot 3.0. Older plugins keep working: everything new is optional in the request.

@@ -1,7 +1,7 @@
 {
   "info": {
-    "name": "MCBuddy API",
-    "description": "🤖 Коллекция эндпоинтов для MCBuddy Server - интеллектуального российского Minecraft-ассистента",
+    "name": "Allay API",
+    "description": "🤖 Коллекция эндпоинтов для Allay Server - интеллектуального российского Minecraft-ассистента",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "version": "1.0.0"
   },
@@ -28,7 +28,7 @@
             "health"
           ]
         },
-        "description": "Проверка состояния сервера MCBuddy. Возвращает информацию о статусе, времени работы, использовании памяти и версии."
+        "description": "Проверка состояния сервера Allay. Возвращает информацию о статусе, времени работы, использовании памяти и версии."
       },
       "response": [
         {
@@ -83,7 +83,7 @@
             "ask"
           ]
         },
-        "description": "Отправка вопроса AI-ассистенту MCBuddy. Поддерживаются платформы: minecraft, telegram. Максимальная длина вопроса: 1000 символов."
+        "description": "Отправка вопроса AI-ассистенту Allay. Поддерживаются платформы: minecraft, telegram. Максимальная длина вопроса: 1000 символов."
       },
       "response": [
         {

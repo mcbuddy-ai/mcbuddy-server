@@ -3,17 +3,17 @@ networks:
   default:
     driver: bridge
 services:
-  mcbuddy-server:
+  allay-server:
     build:
       context: .
       dockerfile: Dockerfile
     cap_add: [ "SYS_PTRACE" ]
-    container_name: mcbuddy-server-dev
+    container_name: allay-server-dev
     cpus: '1.0'
     depends_on:
-      mcbuddy-server-mongo:
+      allay-server-mongo:
         condition: service_healthy
-      mcbuddy-server-redis:
+      allay-server-redis:
         condition: service_healthy
     env_file: .env.dev
     environment:
@@ -54,9 +54,9 @@ services:
       - ${PORT}:3000
     restart: unless-stopped
     security_opt: [ "seccomp:unconfined" ]
-  mcbuddy-server-mongo:
+  allay-server-mongo:
     command: ["--wiredTigerCacheSizeGB", "0.25"]
-    container_name: mcbuddy-server-mongo-dev
+    container_name: allay-server-mongo-dev
     cpus: '0.5'
     env_file: .env.dev
     environment:
@@ -82,14 +82,14 @@ services:
     ports: [ "27017:27017" ]
     restart: unless-stopped
     volumes:
-      - mcbuddy-server-mongo-data-dev:/data/db
-  mcbuddy-server-redis:
+      - allay-server-mongo-data-dev:/data/db
+  allay-server-redis:
     command: >
       redis-server --port 6379
       --loglevel warning
       --save 20 1
       --requirepass ${REDIS_PASSWORD}
-    container_name: mcbuddy-server-redis-dev
+    container_name: allay-server-redis-dev
     cpus: '0.5'
     env_file: [ .env.dev ]
     environment:
@@ -114,9 +114,9 @@ services:
     restart: unless-stopped
     user: '0'
     volumes:
-      - mcbuddy-server-redis-data-dev:/data
+      - allay-server-redis-data-dev:/data
 volumes:
-  mcbuddy-server-mongo-data-dev:
+  allay-server-mongo-data-dev:
     driver: local
-  mcbuddy-server-redis-data-dev:
+  allay-server-redis-data-dev:
     driver: local

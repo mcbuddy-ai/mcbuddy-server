@@ -1,16 +1,16 @@
-# 🛠️ McBuddy Server
+# 🛠️ Allay Server
 
-[![AI Capable](https://img.shields.io/badge/AI-Capable-brightgreen?style=flat&logo=openai&logoColor=white)](https://github.com/mcbuddy-ai/mcbuddy-server)
-[![GitHub Release](https://img.shields.io/github/v/release/mcbuddy-ai/mcbuddy-server?style=flat&logo=github&color=blue)](https://github.com/mcbuddy-ai/mcbuddy-server/releases)
-[![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker&logoColor=white)](https://github.com/mcbuddy-ai/mcbuddy-server/pkgs/container/mcbuddy-server)
+[![AI Capable](https://img.shields.io/badge/AI-Capable-brightgreen?style=flat&logo=openai&logoColor=white)](https://github.com/allay-ai/server)
+[![GitHub Release](https://img.shields.io/github/v/release/allay-ai/server?style=flat&logo=github&color=blue)](https://github.com/allay-ai/server/releases)
+[![Docker](https://img.shields.io/badge/Docker-Available-2496ED?style=flat&logo=docker&logoColor=white)](https://github.com/allay-ai/server/pkgs/container/server)
 [![Bun](https://img.shields.io/badge/Bun-1.2.18-000000?style=flat&logo=bun&logoColor=white)](https://bun.sh/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9.3-3178C6?style=flat&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![MongoDB](https://img.shields.io/badge/MongoDB-8.0.15-47A248?style=flat&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
 [![Redis](https://img.shields.io/badge/Redis-8.2-DC382D?style=flat&logo=redis&logoColor=white)](https://redis.io/)
 
-[English version](https://github.com/mcbuddy-ai/mcbuddy-server/blob/master/README.md)
+[English version](https://github.com/allay-ai/server/blob/master/README.md)
 
-🛠️⚡ Бэкенд для AI-ассистента MCBuddy — агент на [Mastra](https://mastra.ai) поверх OpenRouter, который отвечает игрокам в Minecraft и в Telegram. В игре он видит, что происходит с игроком: инвентарь, здоровье, что вокруг, рецепты этого сервера. Свежие факты он ищет в интернете сам, когда это нужно.
+🛠️⚡ Бэкенд для Allay, ИИ-помощника, названного в честь дружелюбного моба, который приносит игрокам нужное. Это агент на [Mastra](https://mastra.ai) поверх OpenRouter, который отвечает игрокам в Minecraft и в Telegram. В игре он видит, что происходит с игроком: инвентарь, здоровье, что вокруг, рецепты этого сервера. Свежие факты он ищет в интернете сам, когда это нужно.
 
 ## Как это работает
 
@@ -37,7 +37,7 @@
 
 Кроме ответа текстом, агент ставит под ним кнопки (`add_buttons`): варианты при неоднозначном вопросе, следующий вопрос, путь к координатам, окна рецептов, чар и жителей. Подробный ответ по просьбе игрока он пишет в книгу (`write_book`), а цели вроде «собрать 16 алмазов» ставит полосой сверху экрана (`goals`).
 
-Агент знает и сам MCBuddy. На вопрос «что ты умеешь?» или «как выключить режим чата?» он вызывает `get_buddy_guide`. Плагин отвечает командами, которые доступны этому игроку, префиксами режима чата, настройками игрока и тем, что включено на сервере. Поэтому агент не называет команд, которых нет. `buddy_settings` включает и выключает режим чата и подсказку о нём, когда игрок просит словами. `get_server` перечисляет плагины сервера с версиями, и вопрос про могилы или приваты получает ответ про тот плагин, что на самом деле стоит.
+Агент знает и сам Allay. На вопрос «что ты умеешь?» или «как выключить режим чата?» он вызывает `get_allay_guide`. Плагин отвечает командами, которые доступны этому игроку, префиксами режима чата, настройками игрока и тем, что включено на сервере. Поэтому агент не называет команд, которых нет. `allay_settings` включает и выключает режим чата и подсказку о нём, когда игрок просит словами. `get_server` перечисляет плагины сервера с версиями, и вопрос про могилы или приваты получает ответ про тот плагин, что на самом деле стоит.
 
 Вопрос из `/askall` приходит с `visibility: "public"`: его и ответ видят все игроки онлайн. Промпт запрещает агенту раскрывать координаты, заметки и память спросившего, а книга в таком ответе недоступна.
 
@@ -47,7 +47,7 @@
 
 У общих вопросов своя ветка, одна на сервер, отдельно от сессий игроков. Каждый вопрос в ней начинается с ника спросившего. Поэтому, когда друг уточняет чужой вопрос, агент понимает, о чём речь. Ветка живёт 2 часа после последнего вопроса.
 
-Долгая память лежит в MongoDB и не истекает. Это до 30 коротких фактов: где база, над чем игрок работает, как ему удобнее отвечать. Агент записывает их сам и говорит об этом. Плагин даёт игроку `/buddy new`, `/buddy memory` и `/buddy forget` через эндпоинты `/api/v2/users/{user_id}/…`, описанные в протоколе.
+Долгая память лежит в MongoDB и не истекает. Это до 30 коротких фактов: где база, над чем игрок работает, как ему удобнее отвечать. Агент записывает их сам и говорит об этом. Плагин даёт игроку `/allay new`, `/allay memory` и `/allay forget` через эндпоинты `/api/v2/users/{user_id}/…`, описанные в протоколе.
 
 Старые `POST /api/ask` и `POST /api/askx` работают как раньше. Их используют Telegram-бот и плагины до 2.0: тот же агент, но без инструментов игры, ответ одним JSON. Сессия общая для обеих версий API.
 
@@ -60,8 +60,8 @@
 1. **Подготовка конфигурации:**
    ```bash
    # Клонируйте репозиторий
-   git clone https://github.com/mcbuddy-ai/mcbuddy-server
-   cd mcbuddy-server
+   git clone https://github.com/allay-ai/server
+   cd server
    
    # Скопируйте пример переменных окружения
    cp .env.sample .env
@@ -83,19 +83,19 @@
 
 4. **Проверьте статус:**
    ```bash
-   docker compose logs -f mcbuddy-server
+   docker compose logs -f allay-server
    ```
 
 ### Docker Compose с готовым образом
 
 Если хотите использовать готовый образ и управлять MongoDB/Redis самостоятельно:
 
-1. Задекларируйте сервис mcbuddy-server в `docker-compose.yml`:
+1. Задекларируйте сервис allay-server в `docker-compose.yml`:
 
 ```yaml
 services:
-  mcbuddy-server:
-    image: ghcr.io/mcbuddy-ai/mcbuddy-server:1.3.3
+  allay-server:
+    image: ghcr.io/allay-ai/server:4.0.0
     env_file: .env
     environment:
       MONGODB_URI: ${MONGODB_URI}
@@ -204,7 +204,7 @@ AI-инструменты использовались точечно для р�
 
 ## Связанные проекты
 
-[MCBuddy Spigot](https://github.com/mcbuddy-ai/mcbuddy-spigot) — 💬 приводит MCBuddy в игру: спрашивайте AI о чём угодно через `/ask` прямо в чате, каждый игрок — на своём языке. 🎮
+[Allay for Minecraft](https://github.com/allay-ai/minecraft) — 💬 приводит Allay в игру: спрашивайте AI о чём угодно через `/ask` прямо в чате, каждый игрок — на своём языке. 🎮
 
 ## От того же автора
 
@@ -216,6 +216,6 @@ AI-инструменты использовались точечно для р�
 
 ## Лицензия
 
-MIT, см. [LICENSE](https://github.com/mcbuddy-ai/mcbuddy-server/blob/master/LICENSE).
+MIT, см. [LICENSE](https://github.com/allay-ai/server/blob/master/LICENSE).
 
 > 🫡 Сделал Павел Ерохин (Pavel Erokhin), он же mairwunnx.

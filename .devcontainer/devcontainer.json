@@ -1,9 +1,9 @@
 {
-  "name": "mcbuddy-server-dev",
+  "name": "allay-server-dev",
   "dockerComposeFile": [
     "../docker-compose.dev.yaml"
   ],
-  "service": "mcbuddy-server",
+  "service": "allay-server",
   "workspaceFolder": "/workspace",
   "features": {
     "ghcr.io/devcontainers/features/common-utils:2": {},
@@ -20,7 +20,7 @@
   ],
   "portsAttributes": {
     "3000": {
-      "label": "MCBuddy Server API",
+      "label": "Allay Server API",
       "onAutoForward": "notify"
     },
     "6379": {
@@ -56,9 +56,9 @@
   "postCreateCommand": "bun install",
   "postStartCommand": "bun --version",
   "runServices": [
-    "mcbuddy-server-mongo",
-    "mcbuddy-server-redis",
-    "mcbuddy-server"
+    "allay-server-mongo",
+    "allay-server-redis",
+    "allay-server"
   ],
   "shutdownAction": "stopCompose"
 }
