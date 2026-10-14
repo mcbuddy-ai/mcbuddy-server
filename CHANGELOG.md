@@ -4,8 +4,14 @@ The “Release” workflow takes the notes for a version from its section here, 
 
 ## 2.4.0
 
-- 🔍 **`inspect_item`** for plugins 2.4: the agent examines one item in full (attack numbers as the tooltip shows them, potion seconds, trims, books, fireworks, what a shulker box or bundle holds) and treats player-written names, lore, and book titles as data, not instructions. `get_container` takes `detail`.
-- 🎒 The agent counts what bundles and shulker boxes hold when a player asks how many of something they have.
+Needs MCBuddy Spigot 2.4: the tool set changed, and older plugins lose the tools whose names changed.
+
+- 👀 **Fewer, broader tools.** `look_at` replaces `get_target`, `get_block_info`, `get_container`, `get_enchant_options`, `get_mob_info`, and `get_villager_trades`; `inspect_item` reads maps instead of `get_map_info`; `reminders` and `goals` each take an `action` instead of three tools apiece; `find_item` searches the inventory, the ender chest, and the containers around, inside shulker boxes and bundles too. A player sees 35 tools instead of 44.
+- 🔎 **`inspect_item`**: the agent examines one item in full (attack numbers as the tooltip shows them, potion seconds, trims, books, fireworks, maps, what a shulker box or bundle holds) and treats player-written names, lore, and book titles as data, not instructions.
+- 🧭 Descriptions say what the plugin really returns: absolute coordinates, the game's dimension ids, advancement keys for goals, recipes beyond the first five, the whole inventory for durability. `point_to` needs no `y` and takes a dimension.
+- 🛡️ `/askx` gets only the tools that read the game: no actions, no operator tools.
+- 🌍 Server tools send `summary_key` and `summary_values` with their status, so the plugin shows “5 sources” in the player's language.
+- The prompt routes questions to the merged tools; descriptions lost the repeated “game data” suffix, since the prompt already says it.
 - 📦 Releases are made by hand from the “Release” workflow; it tags the version, publishes `ghcr.io/mcbuddy-ai/mcbuddy-server:<version>`, and writes these notes to the GitHub release.
 
 ## 2.3.0

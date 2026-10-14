@@ -27,7 +27,7 @@ The plugin opens one streaming request, `POST /api/v2/chat`, per question. The s
 
 For `/askx`, a `commands` event with the command list replaces the text. The full protocol is in [docs/protocol-v2.md](docs/protocol-v2.md).
 
-Game tools only see the player who asked and the world around them; other players' coordinates and inventories stay out of reach. The plugin sends the list of tools it offers, so a server admin can switch any of them off. Besides reading, everyone gets harmless actions: pointing the compass at a spot, sorting the inventory, reminders, and a notebook. The agent pins a note to a place (“a villager here sells arrows”), then finds it from a loose question later and points the way. It also looks into chests, examines any item in full (a book’s enchantments, a potion’s effects, a weapon’s damage and speed, a shulker box’s contents), works out durability, XP, and food, tells where to put torches, and estimates a farm’s rate. Tools that give items, teleport, or change the game mode, time, or weather go to operators only. The backend drops them for everyone else, even if a plugin offers them.
+Game tools only see the player who asked and the world around them; other players' coordinates and inventories stay out of reach. The plugin sends the list of tools it offers, so a server admin can switch any of them off. Besides reading, everyone gets harmless actions: pointing the compass at a spot, sorting the inventory, reminders, and a notebook. The agent pins a note to a place (“a villager here sells arrows”), then finds it from a loose question later and points the way. In one call it sees whatever the player looks at: a block, a chest, a mob, or a villager. It finds where an item is, even inside shulker boxes and bundles, examines any item in full (a book’s enchantments, a potion’s effects, a weapon’s damage and speed, a shulker box’s contents), works out durability, XP, and food, tells where to put torches, and estimates a farm’s rate. Tools that give items, teleport, or change the game mode, time, or weather go to operators only. The backend drops them for everyone else, even if a plugin offers them, and `/askx` gets only the tools that read the game. Server tools send their short results as a key, so the plugin shows them in the player's language.
 
 Three tools run on the backend:
 
@@ -39,7 +39,7 @@ The agent answers in the language of the question. The game locale only matters 
 
 The backend puts the player’s real date and time in front of each Minecraft question, for example `[Mon, 12 Oct 2026, 23:42 Europe/Moscow]`. The plugin sends the time zone. The time goes into the message, not the system prompt, so the provider’s prompt cache keeps working.
 
-Besides the text, the agent puts buttons under its answer (`add_buttons`): options for an ambiguous question, a next question, the way to coordinates, and the recipe, enchanting, and villager windows. When the player asks for detail, it writes the answer into a book (`write_book`), and it sets goals like “collect 16 diamonds” as a bar at the top of the screen (`set_goal`).
+Besides the text, the agent puts buttons under its answer (`add_buttons`): options for an ambiguous question, a next question, the way to coordinates, and the recipe, enchanting, and villager windows. When the player asks for detail, it writes the answer into a book (`write_book`), and it sets goals like “collect 16 diamonds” as a bar at the top of the screen (`goals`).
 
 ### Memory
 
