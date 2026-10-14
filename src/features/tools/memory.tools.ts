@@ -2,14 +2,14 @@ import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { MAX_MEMORIES, MAX_MEMORY_CHARS, type MemoryStore } from "../../infrastructure/memory/memory";
 import { logger } from "../../shared/logging/logger";
-import type { Emit } from "../chat/chat.events";
+import { type Emit, type Summary, summaryFields } from "../chat/chat.events";
 
 /** remember and forget: the agent keeps lasting facts about the asking player, and only them. */
 export const memoryTools = (memories: MemoryStore, options: { userId: string; emit: Emit }) => {
   const status = (name: string, args: object) => {
     const callId = crypto.randomUUID();
-    return (state: "started" | "finished" | "failed", summary?: string) =>
-      options.emit({ event: "tool_status", data: { call_id: callId, name, kind: "server", state, args, ...(summary ? { summary } : {}) } });
+    return (state: "started" | "finished" | "failed", summary?: Summary) =>
+      options.emit({ event: "tool_status", data: { call_id: callId, name, kind: "server", state, args, ...summaryFields(summary) } });
   };
   return {
     remember: createTool({
@@ -22,14 +22,14 @@ export const memoryTools = (memories: MemoryStore, options: { userId: string; em
         try {
           const saved = await memories.add(options.userId, text);
           if (saved === "full") {
-            report("failed", "memory is full");
+            report("failed", { text: "memory is full", key: "memory_full" });
             return { error: `Memory is full (${MAX_MEMORIES}). Forget an outdated fact first, or tell the player to clear some with /ask forget.` };
           }
-          report("finished", saved.text.slice(0, 60));
+          report("finished", { text: saved.text.slice(0, 60), key: "remembered", values: { text: saved.text.slice(0, 60) } });
           return { saved };
         } catch (error) {
           logger.warn(`Couldn't remember for ${options.userId}: ${String(error)}`);
-          report("failed", "memory unavailable");
+          report("failed", { text: "memory unavailable", key: "memory_unavailable" });
           return { error: "Memory is unavailable right now." };
         }
       },
@@ -43,11 +43,11 @@ export const memoryTools = (memories: MemoryStore, options: { userId: string; em
         report("started");
         try {
           const removed = await memories.remove(options.userId, id);
-          report(removed ? "finished" : "failed", removed ? "forgotten" : "no such memory");
+          report(removed ? "finished" : "failed", removed ? { text: "forgotten", key: "forgotten" } : { text: "no such memory", key: "no_such_memory" });
           return removed ? { forgotten: id } : { error: `No memory with id ${id}` };
         } catch (error) {
           logger.warn(`Couldn't forget for ${options.userId}: ${String(error)}`);
-          report("failed", "memory unavailable");
+          report("failed", { text: "memory unavailable", key: "memory_unavailable" });
           return { error: "Memory is unavailable right now." };
         }
       },

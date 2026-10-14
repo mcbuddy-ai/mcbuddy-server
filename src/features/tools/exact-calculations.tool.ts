@@ -1,7 +1,7 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
 import { logger } from "../../shared/logging/logger";
-import type { Emit } from "../chat/chat.events";
+import { type Emit, type Summary, summaryFields } from "../chat/chat.events";
 
 export const MAX_EXPRESSIONS = 10;
 export const MAX_EXPRESSION_CHARS = 300;
@@ -77,22 +77,27 @@ export const exactCalculationsTool = (options: { emit: Emit }) =>
     }),
     execute: async ({ expressions }) => {
       const callId = crypto.randomUUID();
-      const status = (state: "started" | "finished" | "failed", summary?: string) =>
+      const status = (state: "started" | "finished" | "failed", summary?: Summary) =>
         options.emit({
           event: "tool_status",
-          data: { call_id: callId, name: "exact_calculations", kind: "server", state, args: { expressions }, ...(summary ? { summary } : {}) },
+          data: { call_id: callId, name: "exact_calculations", kind: "server", state, args: { expressions }, ...summaryFields(summary) },
         });
       status("started");
       try {
         const results = await calculateAll(expressions);
         const failed = results.filter((r) => "error" in r).length;
         const first = results[0];
-        const summary = results.length === 1 && "result" in first ? `= ${first.result}` : `${results.length - failed} of ${results.length} computed`;
-        status("finished", summary.slice(0, 80));
+        // A single result reads the same in every language; a batch gets a key the plugin translates.
+        status(
+          "finished",
+          results.length === 1 && "result" in first
+            ? { text: `= ${first.result}`.slice(0, 80) }
+            : { text: `${results.length - failed} of ${results.length} computed`, key: "computed", values: { done: results.length - failed, total: results.length } },
+        );
         return { results };
       } catch (error) {
         logger.warn(`Calculation failed: ${String(error)}`);
-        status("failed", "calculator unavailable");
+        status("failed", { text: "calculator unavailable", key: "calculator_unavailable" });
         return { error: "The calculator is unavailable right now; say you couldn't compute it exactly." };
       }
     },

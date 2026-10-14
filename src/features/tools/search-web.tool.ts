@@ -3,7 +3,7 @@ import { generateText } from "ai";
 import { z } from "zod";
 import type { ModelFactory } from "../../infrastructure/providers/openrouter/openrouter.client";
 import { logger } from "../../shared/logging/logger";
-import type { Emit } from "../chat/chat.events";
+import { type Emit, type Summary, summaryFields } from "../chat/chat.events";
 
 const SEARCH_INSTRUCTIONS =
   "Search the web and answer the query for a Minecraft Java Edition assistant. Prefer minecraft.wiki and official sources. " +
@@ -18,10 +18,10 @@ export const searchWebTool = (models: ModelFactory, options: { token?: string; p
     inputSchema: z.object({ query: z.string().min(2).max(300) }),
     execute: async ({ query }, context) => {
       const callId = crypto.randomUUID();
-      const status = (state: "started" | "finished" | "failed", summary?: string) =>
+      const status = (state: "started" | "finished" | "failed", summary?: Summary) =>
         options.emit({
           event: "tool_status",
-          data: { call_id: callId, name: "search_web", kind: "server", state, args: { query }, ...(summary ? { summary } : {}) },
+          data: { call_id: callId, name: "search_web", kind: "server", state, args: { query }, ...summaryFields(summary) },
         });
       status("started");
       try {
@@ -37,11 +37,11 @@ export const searchWebTool = (models: ModelFactory, options: { token?: string; p
             result.sources.flatMap((source) => (source.sourceType === "url" ? [source.url] : [])),
           ),
         ].slice(0, 8);
-        status("finished", sources.length === 1 ? "1 source" : `${sources.length} sources`);
+        status("finished", { text: sources.length === 1 ? "1 source" : `${sources.length} sources`, key: "sources", values: { count: sources.length } });
         return { summary: result.text.trim(), sources };
       } catch (error) {
         logger.warn(`Web search failed: ${String(error)}`);
-        status("failed", "search failed");
+        status("failed", { text: "search failed", key: "search_failed" });
         return { error: "Web search is unavailable right now; answer from knowledge and say you couldn't check." };
       }
     },
