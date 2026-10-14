@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import type { ToolBridge } from "../src/features/chat/chat.bridge";
-import { GAME_TOOLS, gameTools, OPERATOR_TOOLS, offeredTools } from "../src/features/tools/game.tools";
+import { GAME_TOOLS, gameTools, OPERATOR_TOOLS, offeredTools, pluginName } from "../src/features/tools/game.tools";
 
 describe("offered game tools", () => {
   test("operators get the operator tools the plugin offers", () => {
@@ -26,7 +26,11 @@ describe("offered game tools", () => {
   });
 
   test("askx can't change settings", () => {
-    expect(offeredTools(["get_buddy_guide", "buddy_settings"], false, "askx")).toEqual(["get_buddy_guide"]);
+    expect(offeredTools(["get_allay_guide", "allay_settings"], false, "askx")).toEqual(["get_allay_guide"]);
+    // Plugins before 4.0 offer the old names; the model sees the new ones, and the plugin is called by its own.
+    expect(offeredTools(["get_buddy_guide", "buddy_settings"], false)).toEqual(["get_allay_guide", "allay_settings"]);
+    expect(pluginName("get_allay_guide", ["get_buddy_guide"])).toBe("get_buddy_guide");
+    expect(pluginName("get_allay_guide", ["get_allay_guide"])).toBe("get_allay_guide");
   });
 
   test("a question everyone sees goes without a book", () => {
@@ -41,7 +45,7 @@ describe("offered game tools", () => {
         "locate_structure", "locate_biome", "get_server", "get_locations", "get_death_info", "find_villagers", "scan_nearby_containers", "find_item",
         "inspect_item", "get_item_durability", "get_xp_info", "get_food_options", "get_anvil_plan", "get_light_spawn_check", "get_brewing_items",
         "scan_farm", "point_to", "ping_me", "sort_inventory", "reminders", "goals", "add_note", "find_notes", "delete_note", "add_buttons",
-        "write_book", "get_buddy_guide", "buddy_settings", "set_timezone",
+        "write_book", "get_allay_guide", "allay_settings", "set_timezone",
       ].sort(),
     );
     expect(offeredTools([...GAME_TOOLS], false)).toEqual([...GAME_TOOLS]);

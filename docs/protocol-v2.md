@@ -1,4 +1,4 @@
-# MCBuddy streaming protocol v2
+# Allay streaming protocol v2
 
 The plugin opens one streaming request per question. The backend agent (Mastra) streams back what it is doing, and when it needs to know something about the game it asks the plugin to run a tool and post the result back. Web search runs on the backend.
 
@@ -97,8 +97,10 @@ Answers: `200 { "accepted": true }`, `404` unknown or finished run or call, `409
 | `add_buttons` | `{ "buttons": [{ "type", "label", "question"?, "x"?, "y"?, "z"?, "dimension"?, "text"?, "item"? }] }` | Puts up to 5 buttons under the answer. `ask` asks `question` on click; `point` shows the way to x, y, z; `note` saves `text` with x, y, z; `recipe` opens the recipe window for `item`; `enchants` the enchanting window for the item in hand; `villagers` the villager window, optionally for `item`. Returns `{ added, total }` |
 | `write_book` | `{ "title": "≤ 32", "text": "≤ 8000" }` | Writes the text into a book and adds buttons to open and take it under the answer; returns `{ pages }` |
 | `set_timezone` | `{ "zone": "Asia/Yekaterinburg" }` | Stores the player's IANA zone for later requests; returns `{ zone, local_time }` |
-| `get_buddy_guide` | – | Since 3.0. How MCBuddy works for this player here: plugin_version, commands [{usage, does}] they have permission for, chat_mode {prefixes {"!", "?", "~"}: what each does, only those this player may use}, settings {chat_mode, hints, timezone}, features [names of what the server has on: notes, goals, reminders, windows, books, buttons, compass, sorting, operator_tools], limits {notes, reminders, goals, public_cooldown_seconds} |
-| `buddy_settings` | `{ "chat_mode"?: bool, "hints"?: bool }` | Since 3.0. Changes the player's settings, as `/buddy chat` and `/buddy hints` do; turning chat mode on also sends the plugin's explanation. Returns `{ chat_mode, hints }`. An action: not for `askx` |
+| `get_allay_guide` | – | Since 4.0 (3.x calls it `get_buddy_guide`). How Allay works for this player here: plugin_version, commands [{usage, does}] they have permission for, chat_mode {prefixes {"!", "?", "~"}: what each does, only those this player may use}, settings {chat_mode, hints, timezone}, features [names of what the server has on: notes, goals, reminders, windows, books, buttons, compass, sorting, operator_tools], limits {notes, reminders, goals, public_cooldown_seconds} |
+| `allay_settings` | `{ "chat_mode"?: bool, "hints"?: bool }` | Since 4.0 (3.x calls it `buddy_settings`). Changes the player's settings, as `/allay chat` and `/allay hints` do; turning chat mode on also sends the plugin's explanation. Returns `{ chat_mode, hints }`. An action: not for `askx` |
+
+A plugin before 4.0 offers the guide and the settings as `get_buddy_guide` and `buddy_settings`. The backend shows the model the new names and sends `tool_call` with the name the plugin offered, so old plugins keep both.
 
 A `trade` is `{ buy: [item], sell: item, left, max_uses }`; `buy` is what this player pays now, with demand and discounts, and a book's `sell` carries `stored_enchantments`.
 
@@ -153,7 +155,7 @@ The backend keeps two things per `user_id`:
 - **The server's public thread** (since 3.0). Public questions with a `server.id` go to `public:<server.id>` instead of the asker's session, each question prefixed with the asker's name in brackets, so a follow-up from another player continues the talk. It folds like a session and lives 2 hours after the last question (`PUBLIC_CHAT_TTL_SECONDS`). Without `server.id` a public question uses the asker's session.
 - **Memories.** Lasting facts the model saves with `remember`, kept in MongoDB without expiry. They go into the system prompt with their ids.
 
-Endpoints for the plugin's `/buddy new`, `/buddy memory`, and `/buddy forget`:
+Endpoints for the plugin's `/allay new`, `/allay memory`, and `/allay forget`:
 
 | Request | Answer |
 |---|---|

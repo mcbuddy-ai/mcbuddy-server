@@ -1,7 +1,7 @@
 import { ContextLogger } from "./context";
 import { ILogObj, Logger } from "tslog";
 
-const _logger = new Logger<ILogObj>({ type: "json", name: "MCBuddy-Server" });
+const _logger = new Logger<ILogObj>({ type: "json", name: "Allay-Server" });
 export const logger = new ContextLogger(_logger);
 
-logger.info("Initialization of MCBuddy Server");
+logger.info("Initialization of Allay Server");

@@ -1,4 +1,4 @@
-import type { BuddyDeps } from "../agent/buddy";
+import type { AllayDeps } from "../agent/allay";
 import type { handleAsk } from "../features/ask/ask.controller";
 import type { handleAskX } from "../features/askx/askx.controller";
 import type { handleChat, handleToolResult } from "../features/chat/chat.controller";
@@ -17,7 +17,7 @@ interface Handlers {
 }
 
 /** The HTTP routes, built from injected services so tests can serve them with fakes. */
-export const routes = (deps: BuddyDeps, h: Handlers) => ({
+export const routes = (deps: AllayDeps, h: Handlers) => ({
   "/api/health": h.handleHealth,
   "/api/ask": h.handleAsk(deps),
   "/api/askx": h.handleAskX(deps),

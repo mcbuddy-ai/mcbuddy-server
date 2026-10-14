@@ -1,4 +1,4 @@
-import { type BuddyDeps, runBuddy } from "../../agent/buddy";
+import { type AllayDeps, runAllay } from "../../agent/allay";
 import { silent } from "../chat/chat.events";
 import { readJson } from "../../shared/lib/http";
 import { logger } from "../../shared/logging/logger";
@@ -19,7 +19,7 @@ const error = (e: ApiError): Response => {
 };
 
 /** POST /api/ask, v1: the Telegram bot and older plugins. Same agent, no game tools, one JSON answer. */
-export const handleAsk = (deps: BuddyDeps) => async (req: Request): Promise<Response> => {
+export const handleAsk = (deps: AllayDeps) => async (req: Request): Promise<Response> => {
   if (req.method !== "POST") return error(apierror(API_ERRORS.METHOD_NOT_SUPPORTED));
   const json = await readJson(req);
   if (!json.ok) return error(json.error);
@@ -34,7 +34,7 @@ export const handleAsk = (deps: BuddyDeps) => async (req: Request): Promise<Resp
   const platform = typeof body.platform === "string" ? body.platform : "unknown";
   const userId = typeof body.user_id === "string" && body.user_id ? body.user_id : "anonymous";
   try {
-    const result = await runBuddy(
+    const result = await runAllay(
       {
         mode: "ask",
         platform: platform === "telegram" ? "telegram" : "minecraft",

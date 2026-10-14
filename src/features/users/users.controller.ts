@@ -1,4 +1,4 @@
-import type { BuddyDeps } from "../../agent/buddy";
+import type { AllayDeps } from "../../agent/allay";
 import { jsonError } from "../../shared/lib/http";
 import { logger } from "../../shared/logging/logger";
 import { API_ERRORS, apierror } from "../../shared/types/errors";
@@ -23,7 +23,7 @@ const failed = (what: string, error: unknown) => {
 };
 
 /** DELETE /api/v2/users/{user_id}/session: `/ask new`. Memories stay. */
-export const handleSession = (deps: BuddyDeps) => async (req: Routed): Promise<Response> => {
+export const handleSession = (deps: AllayDeps) => async (req: Routed): Promise<Response> => {
   if (req.method !== "DELETE") return jsonError(apierror(API_ERRORS.METHOD_NOT_SUPPORTED));
   const userId = userOf(req);
   if (!userId) return badUser();
@@ -36,7 +36,7 @@ export const handleSession = (deps: BuddyDeps) => async (req: Routed): Promise<R
 };
 
 /** GET lists, DELETE wipes /api/v2/users/{user_id}/memories: `/ask memory` and `/ask forget all`. */
-export const handleMemories = (deps: BuddyDeps) => async (req: Routed): Promise<Response> => {
+export const handleMemories = (deps: AllayDeps) => async (req: Routed): Promise<Response> => {
   const userId = userOf(req);
   if (!userId) return badUser();
   try {
@@ -49,7 +49,7 @@ export const handleMemories = (deps: BuddyDeps) => async (req: Routed): Promise<
 };
 
 /** DELETE /api/v2/users/{user_id}/memories/{id}: `/ask forget <n>`. */
-export const handleMemory = (deps: BuddyDeps) => async (req: Routed): Promise<Response> => {
+export const handleMemory = (deps: AllayDeps) => async (req: Routed): Promise<Response> => {
   if (req.method !== "DELETE") return jsonError(apierror(API_ERRORS.METHOD_NOT_SUPPORTED));
   const userId = userOf(req);
   if (!userId) return badUser();

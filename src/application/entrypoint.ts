@@ -9,7 +9,7 @@ import { connect as mongoConnect, disconnect as mongoDisconnect } from "../infra
 import { productionDeps } from "./deps";
 import { routes } from "./routes";
 
-logger.info("MCBuddy Server is starting...");
+logger.info("Allay Server is starting...");
 
 await redis.ping();
 await mongoConnect();

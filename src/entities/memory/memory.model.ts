@@ -1,6 +1,6 @@
 import { Schema, model } from "mongoose";
 
-/** A lasting fact MCBuddy keeps about one player, such as where their base is. */
+/** A lasting fact Allay keeps about one player, such as where their base is. */
 export interface MemoryDocument {
   id: string;
   user_id: string;

@@ -1,6 +1,6 @@
 import type { LanguageModelV4, LanguageModelV4StreamPart } from "@ai-sdk/provider";
 import { MockLanguageModelV4, convertArrayToReadableStream } from "ai/test";
-import type { BuddyDeps } from "../src/agent/buddy";
+import type { AllayDeps } from "../src/agent/allay";
 import { ToolBridge } from "../src/features/chat/chat.bridge";
 import { memoryHistory } from "../src/infrastructure/history/history";
 import { memoryMemories } from "../src/infrastructure/memory/memory";
@@ -70,7 +70,7 @@ export const scripted = (steps: LanguageModelV4StreamPart[][]) => {
 export const testDeps = (
   chat: LanguageModelV4,
   options: { search?: LanguageModelV4; toolTimeoutMs?: number } = {},
-): BuddyDeps & { searchCalls: number } => {
+): AllayDeps & { searchCalls: number } => {
   const deps = {
     searchCalls: 0,
     history: memoryHistory(),

@@ -1,5 +1,5 @@
 import type { Server } from "bun";
-import { type BuddyDeps, runBuddy } from "../../agent/buddy";
+import { type AllayDeps, runAllay } from "../../agent/allay";
 import { jsonError, readJson } from "../../shared/lib/http";
 import { logger } from "../../shared/logging/logger";
 import { API_ERRORS, apierror } from "../../shared/types/errors";
@@ -9,7 +9,7 @@ import { sseResponse } from "./chat.sse";
 const MAX_ACTIVE_RUNS = Number(process.env.MAX_ACTIVE_RUNS || 200);
 
 /** POST /api/v2/chat: one question, streamed back as events while the agent works. */
-export const handleChat = (deps: BuddyDeps) => async (req: Request, server?: Server): Promise<Response> => {
+export const handleChat = (deps: AllayDeps) => async (req: Request, server?: Server): Promise<Response> => {
   if (req.method !== "POST") return jsonError(apierror(API_ERRORS.METHOD_NOT_SUPPORTED));
   const json = await readJson(req);
   if (!json.ok) return jsonError(json.error);
@@ -28,7 +28,7 @@ export const handleChat = (deps: BuddyDeps) => async (req: Request, server?: Ser
   return sseResponse(async (emit, signal) => {
     deps.bridge.open(runId, emit);
     try {
-      await runBuddy(context, deps, { runId, emit, signal });
+      await runAllay(context, deps, { runId, emit, signal });
     } finally {
       deps.bridge.close(runId);
     }
@@ -38,7 +38,7 @@ export const handleChat = (deps: BuddyDeps) => async (req: Request, server?: Ser
 type Params = { runId: string; callId: string };
 
 /** POST /api/v2/chat/{run_id}/tools/{call_id}: the plugin's answer to a tool call. */
-export const handleToolResult = (deps: BuddyDeps) => async (req: Request & { params?: Params }): Promise<Response> => {
+export const handleToolResult = (deps: AllayDeps) => async (req: Request & { params?: Params }): Promise<Response> => {
   if (req.method !== "POST") return jsonError(apierror(API_ERRORS.METHOD_NOT_SUPPORTED));
   const { runId, callId } = req.params ?? ({} as Params);
   const json = await readJson(req);

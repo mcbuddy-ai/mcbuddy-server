@@ -3,7 +3,7 @@ import { APICallError, type ModelMessage } from "ai";
 import type { ToolBridge } from "../features/chat/chat.bridge";
 import type { Emit } from "../features/chat/chat.events";
 import { exactCalculationsTool } from "../features/tools/exact-calculations.tool";
-import { gameTools, offeredTools } from "../features/tools/game.tools";
+import { gameTools, offeredTools, pluginName } from "../features/tools/game.tools";
 import { memoryTools } from "../features/tools/memory.tools";
 import { searchWebTool } from "../features/tools/search-web.tool";
 import { type HistoryStore, threadOf } from "../infrastructure/history/history";
@@ -17,7 +17,7 @@ import { systemPrompt } from "./prompts";
 import { localStamp } from "./time";
 import { summarizeWith } from "./summary";
 
-export interface BuddyDeps {
+export interface AllayDeps {
   models: ModelFactory;
   history: HistoryStore;
   memories: MemoryStore;
@@ -35,7 +35,7 @@ const MAX_STEPS = Number(process.env.MAX_AGENT_STEPS || 8);
 /** v1 callers without a user id share "anonymous"; they get no memory. */
 const remembers = (userId: string) => userId !== "anonymous";
 
-const loadMemories = async (deps: BuddyDeps, userId: string): Promise<Memory[]> => {
+const loadMemories = async (deps: AllayDeps, userId: string): Promise<Memory[]> => {
   if (!remembers(userId)) return [];
   try {
     return await deps.memories.list(userId);
@@ -81,14 +81,14 @@ const question = (context: RunContext): string => {
 const thread = (context: RunContext) => threadOf(context.userId, context.visibility, context.server?.id);
 
 /** Adds this exchange to the session; askx requests go in with a slash so later answers know what was run. */
-const record = (context: RunContext, deps: BuddyDeps, answer: string, asked: string) =>
+const record = (context: RunContext, deps: AllayDeps, answer: string, asked: string) =>
   deps.history.append(
     thread(context),
     { role: "user", content: context.mode === "askx" ? `/askx ${context.message}` : asked },
     { role: "assistant", content: answer },
   );
 
-const compact = async (context: RunContext, deps: BuddyDeps) => {
+const compact = async (context: RunContext, deps: AllayDeps) => {
   try {
     const model = deps.models({ token: context.token, platform: context.platform });
     if (await deps.history.compact(thread(context), summarizeWith(model))) logger.info(`Folded the session of ${thread(context)}`);
@@ -98,10 +98,10 @@ const compact = async (context: RunContext, deps: BuddyDeps) => {
 };
 
 /**
- * One question to MCBuddy: builds the agent for this player, streams its work as protocol
+ * One question to Allay: builds the agent for this player, streams its work as protocol
  * events, and returns the final answer (or commands for askx).
  */
-export const runBuddy = async (context: RunContext, deps: BuddyDeps, options: RunOptions): Promise<RunResult> => {
+export const runAllay = async (context: RunContext, deps: AllayDeps, options: RunOptions): Promise<RunResult> => {
   const started = Date.now();
   const { runId, emit, signal } = options;
   try {
@@ -111,7 +111,7 @@ export const runBuddy = async (context: RunContext, deps: BuddyDeps, options: Ru
     // askx turns one request into commands; earlier chat would only confuse it, as in v1.
     const session = context.mode === "ask" ? await deps.history.load(thread(context)) : { messages: [] };
     const instructions = systemPrompt({ ...context, tools }, { memories, summary: session.summary });
-    const agent = new Agent({ id: "mcbuddy", name: "MCBuddy", instructions, model });
+    const agent = new Agent({ id: "allay", name: "Allay", instructions, model });
     const asked = question(context);
     const messages: ModelMessage[] = [...session.messages, { role: "user", content: asked }];
 
@@ -123,7 +123,7 @@ export const runBuddy = async (context: RunContext, deps: BuddyDeps, options: Ru
       maxSteps: MAX_STEPS,
       modelSettings: { maxRetries: 2 },
       toolsets: {
-        game: gameTools(tools, runId, deps.bridge),
+        game: gameTools(tools, runId, deps.bridge, (name) => pluginName(name, context.tools)),
         web: { search_web: searchWebTool(deps.models, { token: context.token, platform: context.platform, emit }) },
         math: { exact_calculations: exactCalculationsTool({ emit }) },
         ...(context.mode === "ask" && remembers(context.userId)

@@ -3,6 +3,7 @@ const VERSION = process.env.APP_VERSION || "dev";
 
 export const handleHealth = async (_: Request) =>
   Response.json({
+    name: "Allay",
     status: "ok",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),

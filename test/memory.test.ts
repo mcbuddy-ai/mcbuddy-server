@@ -50,10 +50,10 @@ describe("system prompt", () => {
     expect(systemPrompt(context)).not.toContain("- Visibility: public");
   });
 
-  test("the model learns how to explain MCBuddy itself", () => {
+  test("the model learns how to explain Allay itself", () => {
     const prompt = systemPrompt(context);
-    expect(prompt).toContain("call get_buddy_guide");
-    expect(prompt).toContain("call buddy_settings");
+    expect(prompt).toContain("call get_allay_guide");
+    expect(prompt).toContain("call allay_settings");
   });
 
   test("askx gets no memory section", () => {
