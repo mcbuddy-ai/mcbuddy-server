@@ -45,6 +45,17 @@ describe("system prompt", () => {
     expect(systemPrompt({ ...context, platform: "telegram" })).toContain("Answer in the language the player wrote this message in");
   });
 
+  test("a public question says everyone reads the answer", () => {
+    expect(systemPrompt({ ...context, visibility: "public" })).toContain("- Visibility: public");
+    expect(systemPrompt(context)).not.toContain("- Visibility: public");
+  });
+
+  test("the model learns how to explain MCBuddy itself", () => {
+    const prompt = systemPrompt(context);
+    expect(prompt).toContain("call get_buddy_guide");
+    expect(prompt).toContain("call buddy_settings");
+  });
+
   test("askx gets no memory section", () => {
     expect(systemPrompt({ ...context, mode: "askx" })).not.toContain("What you remember");
   });

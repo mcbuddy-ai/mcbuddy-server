@@ -1,5 +1,7 @@
 export type Mode = "ask" | "askx";
 export type Platform = "minecraft" | "telegram";
+/** Who sees the answer: only the asker, or every player online (`/askall`). */
+export type Visibility = "private" | "public";
 
 export interface PlayerInfo {
   name: string;
@@ -8,6 +10,8 @@ export interface PlayerInfo {
 }
 
 export interface ServerInfo {
+  /** A random id the plugin keeps for its server; it names the server's shared thread of public questions. */
+  id?: string;
   software?: string;
   version?: string;
   plugin_version?: string;
@@ -20,6 +24,7 @@ export interface RunContext {
   userId: string;
   message: string;
   locale?: string;
+  visibility?: Visibility;
   /** The asker's IANA time zone from the plugin; their real time goes in front of each question. */
   timezone?: string;
   player?: PlayerInfo;

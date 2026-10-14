@@ -40,6 +40,29 @@ const answerTools = (base: string, results: Record<string, unknown>) => {
 };
 
 describe("POST /api/v2/chat", () => {
+  test("public questions share the server's thread, with each asker's name, apart from private sessions", async () => {
+    const { model, prompts } = scripted([
+      [...text("Mine at y -58 with a bed."), finish()],
+      [...text("In the Nether."), finish()],
+    ]);
+    const deps = testDeps(model);
+    const base = start(deps);
+    const server = { id: "srv-1", software: "Paper", version: "26.3" };
+    await readSse(await chat(base, { message: "how do I find netherite?", visibility: "public", server }));
+    await readSse(
+      await chat(base, { user_id: "player-2", player: { name: "Alex" }, message: "where exactly?", visibility: "public", server }),
+    );
+    // Alex's follow-up sees Steve's question, marked with his name.
+    const second = JSON.stringify(prompts[1]);
+    expect(second).toContain("[Steve]");
+    expect(second).toContain("how do I find netherite?");
+    expect(second).toContain("Visibility: public");
+    const thread = await deps.history.load("public:srv-1");
+    expect(thread.messages.map((m) => m.role)).toEqual(["user", "assistant", "user", "assistant"]);
+    expect(thread.messages[2].content).toStartWith("[Alex] ");
+    expect((await deps.history.load("player-1")).messages).toEqual([]);
+  });
+
   test("streams reasoning, a client tool round trip, the answer, usage, and done", async () => {
     const { model, prompts } = scripted([
       [...reasoning("Let me look at the inventory"), toolCall("get_inventory", {}), finish("tool-calls")],

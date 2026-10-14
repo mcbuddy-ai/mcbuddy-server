@@ -26,6 +26,17 @@ describe("v2 request validation", () => {
     expect(parsed.ok && parsed.context.tools).toEqual(tools);
   });
 
+  test("questions are private unless the plugin says otherwise, and askx always is", () => {
+    const visibility = (body: object) => {
+      const parsed = parseChatRequest({ ...base, ...body }, undefined);
+      return parsed.ok ? parsed.context.visibility : "error";
+    };
+    expect(visibility({})).toBe("private");
+    expect(visibility({ visibility: "public" })).toBe("public");
+    expect(visibility({ mode: "askx", visibility: "public" })).toBe("private");
+    expect(visibility({ visibility: "everyone" })).toBe("error");
+  });
+
   test("errors use the v1 codes", () => {
     const code = (body: unknown) => {
       const parsed = parseChatRequest(body, undefined);
@@ -39,6 +50,8 @@ describe("v2 request validation", () => {
     expect(code({ ...base, mode: "chat" })).toBe("BAD_REQUEST");
     expect(code({ ...base, platform: "telegram" })).toBe("BAD_REQUEST");
     expect(code(null)).toBe("BAD_REQUEST");
+    expect(code({ ...base, user_id: "public:srv-1" })).toBe("BAD_REQUEST");
+    expect(code({ ...base, server: { id: "a b" } })).toBe("BAD_REQUEST");
   });
 });
 

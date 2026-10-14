@@ -1,5 +1,6 @@
 import { createTool } from "@mastra/core/tools";
 import { z } from "zod";
+import type { Visibility } from "../../agent/agent.types";
 import type { ToolBridge } from "../chat/chat.bridge";
 
 /** Client tools: the plugin runs them in the game and posts the result back. */
@@ -57,7 +58,8 @@ const definitions = {
     input: z.object({ biome: z.string().min(1).max(64) }),
   },
   get_server: {
-    description: "This server: software, Minecraft version, online player count, max players, and the MCBuddy plugin version. Difficulty is in get_world.",
+    description:
+      "This server: software, Minecraft version, online player count, max players, the MCBuddy plugin version, and plugins: every enabled plugin with name, version, and a short description. Call it when a question may touch something a plugin changes (graves, land claims, AFK, maps, chat, join messages, a command you don't know) and answer for that plugin and version, searching its docs if you're unsure. Difficulty is in get_world.",
     input: z.object({}),
   },
   get_locations: {
@@ -254,6 +256,16 @@ const definitions = {
       "Writes a long answer into a book the player can open or take for free; buttons for both appear under your answer. Only when the player explicitly asks for a detailed or long explanation. Plain text with line breaks; & color codes work.",
     input: z.object({ title: z.string().min(1).max(32), text: z.string().min(1).max(8000) }),
   },
+  get_buddy_guide: {
+    description:
+      "How MCBuddy works for the asking player on this server: the commands they may use with a line each, chat mode with its prefixes, their settings (chat_mode, hints, timezone), what this server has switched on (notes, goals, reminders, windows, books, buttons), and the limits. Call it before you explain how to use MCBuddy, answer \"what can you do?\", or name a command; never name a command it doesn't list.",
+    input: z.object({}),
+  },
+  buddy_settings: {
+    description:
+      "Changes the asking player's MCBuddy settings when they ask: chat_mode true sends everything they write in chat to you (the plugin then explains the prefixes), false gives chat back to the other players; hints false stops the tip about chat mode under answers. Pass only what changes. Returns the settings after the change.",
+    input: z.object({ chat_mode: z.boolean().optional(), hints: z.boolean().optional() }),
+  },
   set_timezone: {
     description:
       "Remembers the asking player's time zone as an IANA id (Europe/Moscow, Asia/Yekaterinburg, Asia/Novosibirsk…) when they say where they live or that the time you see is wrong.",
@@ -321,19 +333,30 @@ const isOperatorTool = (name: string) => name in operatorDefinitions;
 /** Tools that do something for the player rather than read the game; askx only writes commands, so it gets none of them. */
 const ACTION_TOOLS: ReadonlySet<string> = new Set([
   "point_to", "ping_me", "sort_inventory", "reminders", "goals", "add_note", "delete_note", "add_buttons", "write_book", "set_timezone",
+  "buddy_settings",
 ]);
+
+/** Tools whose result only the asker could see; a question everyone sees goes without them. */
+const PRIVATE_TOOLS: ReadonlySet<string> = new Set(["write_book"]);
 
 /**
  * The client tools this run really gets: the ones the plugin offered and the backend knows,
  * minus operator tools unless the asker is an operator. The plugin checks again when it runs one.
  * askx reads only: it turns a request into commands, so actions and operator tools stay out.
+ * A public question loses the tools that only make sense for the asker alone.
  */
-export const offeredTools = (names: string[], operator: boolean, mode: "ask" | "askx" = "ask"): GameToolName[] =>
+export const offeredTools = (
+  names: string[],
+  operator: boolean,
+  mode: "ask" | "askx" = "ask",
+  visibility: Visibility = "private",
+): GameToolName[] =>
   names.filter(
     (name): name is GameToolName =>
       name in allDefinitions &&
       (operator || !isOperatorTool(name)) &&
-      (mode === "ask" || (!isOperatorTool(name) && !ACTION_TOOLS.has(name))),
+      (mode === "ask" || (!isOperatorTool(name) && !ACTION_TOOLS.has(name))) &&
+      (visibility === "private" || !PRIVATE_TOOLS.has(name)),
   );
 
 // Big inventories and chunk scans shouldn't flood the model's context.

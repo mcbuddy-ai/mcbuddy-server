@@ -9,11 +9,13 @@ export const chatRequestSchema = z.object({
   mode: z.enum(["ask", "askx"]).default("ask"),
   message: z.string(),
   platform: z.literal("minecraft").default("minecraft"),
-  user_id: z.string().min(1).max(64),
+  visibility: z.enum(["private", "public"]).default("private"),
+  // No colon: "public:<server id>" names a server's shared thread, and a player must not write into it as themselves.
+  user_id: z.string().min(1).max(64).regex(/^[^:]+$/),
   locale: text(16),
   timezone: text(64),
   player: z.object({ name: z.string().min(1).max(32), uuid: text(36), op: z.boolean().optional() }).optional(),
-  server: z.object({ software: text(64), version: text(64), plugin_version: text(64) }).optional(),
+  server: z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional(), software: text(64), version: text(64), plugin_version: text(64) }).optional(),
   tools: z.array(z.string().max(64)).max(256).default([]),
 });
 
@@ -48,6 +50,7 @@ export const parseChatRequest = (
       userId: request.user_id,
       message,
       locale: request.locale,
+      visibility: request.mode === "askx" ? "private" : request.visibility,
       timezone: request.timezone,
       player: request.player,
       server: request.server,

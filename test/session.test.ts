@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { FOLD_AT_EXCHANGES, KEEP_EXCHANGES, type HistoryMessage, memoryHistory } from "../src/infrastructure/history/history";
+import { FOLD_AT_EXCHANGES, KEEP_EXCHANGES, type HistoryMessage, memoryHistory, threadOf } from "../src/infrastructure/history/history";
 
 const exchange = (i: number): HistoryMessage[] => [
   { role: "user", content: `question ${i}` },
@@ -7,6 +7,13 @@ const exchange = (i: number): HistoryMessage[] => [
 ];
 
 describe("the chat session", () => {
+  test("public questions go to the server's thread, everything else to the asker's own", () => {
+    expect(threadOf("p1", "public", "srv-1")).toBe("public:srv-1");
+    expect(threadOf("p1", "private", "srv-1")).toBe("p1");
+    // A plugin without a server id can't name a shared thread.
+    expect(threadOf("p1", "public", undefined)).toBe("p1");
+  });
+
   test("isn't folded until enough exchanges pile up", async () => {
     const history = memoryHistory();
     for (let i = 0; i < FOLD_AT_EXCHANGES; i++) await history.append("p1", ...exchange(i));

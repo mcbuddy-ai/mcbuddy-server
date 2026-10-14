@@ -6,7 +6,7 @@ import { exactCalculationsTool } from "../features/tools/exact-calculations.tool
 import { gameTools, offeredTools } from "../features/tools/game.tools";
 import { memoryTools } from "../features/tools/memory.tools";
 import { searchWebTool } from "../features/tools/search-web.tool";
-import type { HistoryStore } from "../infrastructure/history/history";
+import { type HistoryStore, threadOf } from "../infrastructure/history/history";
 import type { Memory, MemoryStore } from "../infrastructure/memory/memory";
 import type { ModelFactory } from "../infrastructure/providers/openrouter/openrouter.client";
 import { logger } from "../shared/logging/logger";
@@ -71,13 +71,19 @@ export const classify = (error: unknown, signal?: AbortSignal): ApiFailure => {
 };
 
 /** The question as the model reads it: Minecraft questions start with the player's real date and time. */
-const question = (context: RunContext): string =>
-  context.platform === "minecraft" && context.mode === "ask" ? `${localStamp(context.timezone)} ${context.message}` : context.message;
+const question = (context: RunContext): string => {
+  if (context.platform !== "minecraft" || context.mode !== "ask") return context.message;
+  // Several players share a public thread, so each question there carries the asker's name.
+  const name = context.visibility === "public" && context.player ? `[${context.player.name}] ` : "";
+  return `${name}${localStamp(context.timezone)} ${context.message}`;
+};
+
+const thread = (context: RunContext) => threadOf(context.userId, context.visibility, context.server?.id);
 
 /** Adds this exchange to the session; askx requests go in with a slash so later answers know what was run. */
 const record = (context: RunContext, deps: BuddyDeps, answer: string, asked: string) =>
   deps.history.append(
-    context.userId,
+    thread(context),
     { role: "user", content: context.mode === "askx" ? `/askx ${context.message}` : asked },
     { role: "assistant", content: answer },
   );
@@ -85,9 +91,9 @@ const record = (context: RunContext, deps: BuddyDeps, answer: string, asked: str
 const compact = async (context: RunContext, deps: BuddyDeps) => {
   try {
     const model = deps.models({ token: context.token, platform: context.platform });
-    if (await deps.history.compact(context.userId, summarizeWith(model))) logger.info(`Folded the session of ${context.userId}`);
+    if (await deps.history.compact(thread(context), summarizeWith(model))) logger.info(`Folded the session of ${thread(context)}`);
   } catch (error) {
-    logger.warn(`Couldn't fold the session of ${context.userId}: ${String(error)}`);
+    logger.warn(`Couldn't fold the session of ${thread(context)}: ${String(error)}`);
   }
 };
 
@@ -100,10 +106,10 @@ export const runBuddy = async (context: RunContext, deps: BuddyDeps, options: Ru
   const { runId, emit, signal } = options;
   try {
     const model = deps.models({ token: context.token, platform: context.platform });
-    const tools = offeredTools(context.tools, context.player?.op === true, context.mode);
+    const tools = offeredTools(context.tools, context.player?.op === true, context.mode, context.visibility);
     const memories = await loadMemories(deps, context.userId);
     // askx turns one request into commands; earlier chat would only confuse it, as in v1.
-    const session = context.mode === "ask" ? await deps.history.load(context.userId) : { messages: [] };
+    const session = context.mode === "ask" ? await deps.history.load(thread(context)) : { messages: [] };
     const instructions = systemPrompt({ ...context, tools }, { memories, summary: session.summary });
     const agent = new Agent({ id: "mcbuddy", name: "MCBuddy", instructions, model });
     const asked = question(context);

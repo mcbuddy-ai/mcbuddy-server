@@ -25,14 +25,23 @@ describe("offered game tools", () => {
     expect(OPERATOR_TOOLS).toContain("give_item");
   });
 
-  test("the 2.4 tool set", () => {
+  test("askx can't change settings", () => {
+    expect(offeredTools(["get_buddy_guide", "buddy_settings"], false, "askx")).toEqual(["get_buddy_guide"]);
+  });
+
+  test("a question everyone sees goes without a book", () => {
+    expect(offeredTools(["get_world", "write_book", "add_buttons"], false, "ask", "public")).toEqual(["get_world", "add_buttons"]);
+    expect(offeredTools(["get_world", "write_book"], false, "ask", "private")).toEqual(["get_world", "write_book"]);
+  });
+
+  test("the 3.0 tool set", () => {
     expect([...GAME_TOOLS].sort() as string[]).toEqual(
       [
         "get_player_status", "get_inventory", "get_surroundings", "look_at", "get_world", "get_statistics", "get_advancements", "get_recipes",
         "locate_structure", "locate_biome", "get_server", "get_locations", "get_death_info", "find_villagers", "scan_nearby_containers", "find_item",
         "inspect_item", "get_item_durability", "get_xp_info", "get_food_options", "get_anvil_plan", "get_light_spawn_check", "get_brewing_items",
         "scan_farm", "point_to", "ping_me", "sort_inventory", "reminders", "goals", "add_note", "find_notes", "delete_note", "add_buttons",
-        "write_book", "set_timezone",
+        "write_book", "get_buddy_guide", "buddy_settings", "set_timezone",
       ].sort(),
     );
     expect(offeredTools([...GAME_TOOLS], false)).toEqual([...GAME_TOOLS]);

@@ -29,6 +29,15 @@ export const KEEP_EXCHANGES = 8;
 /** Exchanges that trigger a fold; between the two the model sees them all, so a fold runs every few questions. */
 export const FOLD_AT_EXCHANGES = 12;
 export const SESSION_TTL_SECONDS = Number(process.env.CHAT_TTL_SECONDS || 24 * 3600);
+/** A server's thread of public questions is a passing talk, so it lives shorter than a player's session. */
+export const PUBLIC_TTL_SECONDS = Number(process.env.PUBLIC_CHAT_TTL_SECONDS || 2 * 3600);
+const PUBLIC_PREFIX = "public:";
+
+/** The session a run reads and writes: the server's shared thread for public questions, the asker's own otherwise. */
+export const threadOf = (userId: string, visibility?: string, serverId?: string) =>
+  visibility === "public" && serverId ? `${PUBLIC_PREFIX}${serverId}` : userId;
+
+const ttlOf = (userId: string) => (userId.startsWith(PUBLIC_PREFIX) ? PUBLIC_TTL_SECONDS : SESSION_TTL_SECONDS);
 const KEEP = KEEP_EXCHANGES * 2;
 const FOLD_AT = FOLD_AT_EXCHANGES * 2;
 // If folding keeps failing, the oldest messages simply fall off here.
@@ -79,8 +88,8 @@ export const redisHistory: HistoryStore = {
     try {
       await redis.send("LPUSH", [key(userId), ...values]);
       await redis.send("LTRIM", [key(userId), "0", String(CAP - 1)]);
-      await redis.expire(key(userId), SESSION_TTL_SECONDS);
-      await redis.expire(summaryKey(userId), SESSION_TTL_SECONDS);
+      await redis.expire(key(userId), ttlOf(userId));
+      await redis.expire(summaryKey(userId), ttlOf(userId));
     } catch (error) {
       logger.warn(`Couldn't save history for ${userId}: ${String(error)}`);
     }
@@ -90,7 +99,7 @@ export const redisHistory: HistoryStore = {
     const raw = (await redis.send("LRANGE", [key(userId), String(KEEP), "-1"])) as string[];
     const older = raw.map(parse).filter((m): m is HistoryMessage => !!m).reverse();
     const summary = (await summarize((await redis.get(summaryKey(userId))) ?? undefined, older)).trim().slice(0, MAX_SUMMARY);
-    if (summary) await redis.set(summaryKey(userId), summary, "EX", SESSION_TTL_SECONDS);
+    if (summary) await redis.set(summaryKey(userId), summary, "EX", ttlOf(userId));
     await redis.send("LTRIM", [key(userId), "0", String(KEEP - 1)]);
     return true;
   },
