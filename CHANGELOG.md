@@ -2,6 +2,15 @@
 
 The “Release” workflow takes the notes for a version from its section here, unless you type them into its `changelog` field.
 
+## 4.1.0
+
+For Allay 4.1. A server pays for the model with its own key or with a subscription in Telegram Stars. **A backend of your own needs `SELFHOSTED=1`:** without it, billing is on, and requests without a license or a key get `LICENSE_REQUIRED`.
+
+- 🔑 **Bring your own key.** `X-Provider-Key` and a `provider` block (`base_url`, `model`, `search_model`) run the request on the server's own OpenRouter or any OpenAI-compatible API. The key lives for one run: never stored, never logged, blanked out of error messages. Before the run the backend checks the key and the model and answers `PROVIDER_AUTH_FAILED`, `MODEL_NOT_FOUND`, or `MODEL_NO_TOOLS`. Without a search model there's no `search_web`. With billing on, BYOK is free, limited to 20 questions a minute, 2000 a day, and 4 at once per server, and its base URL must be public `https://`.
+- ⭐ **Subscriptions.** `POST /api/v2/license` makes a license and a one-time `t.me` link; `GET` answers its status. The backend serves its own Telegram bot through a webhook: `/start <code>` links the server, and the admin pays for a week (150 ⭐), a month (500 ⭐, a Stars subscription that renews), or a year (10 000 ⭐). Each plan is a budget in dollars of real model costs, counting web search and session summaries; a year refills monthly. Hosted requests carry `Authorization: Bearer <license>` and get `SUBSCRIPTION_INACTIVE` or `QUOTA_EXCEEDED` (with `resets_at`) when they can't run. `/status` in the bot shows every server and stops or resumes renewal; `/refund` is for the bot's admins.
+- The old `X-OpenRouter-Token` keeps working, as BYOK with the backend's models. `/api/ask` and `/api/askx` follow the same rules.
+- `/api/health` reports `billing`. Licenses, budget windows, and payments live in MongoDB next to the memories; a license's secret is kept only as SHA-256.
+
 ## 4.0.0
 
 MCBuddy Server is now **Allay Server**, for Allay 4.0. Stored data stays as it was: chat sessions and public threads in Redis, memories in MongoDB.

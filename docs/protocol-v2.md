@@ -6,7 +6,7 @@ The plugin opens one streaming request per question. The backend agent (Mastra) 
 
 `POST /api/v2/chat`
 
-Headers: `Content-Type: application/json`, `Accept: text/event-stream`, optional `X-OpenRouter-Token` (a player-supplied OpenRouter key, as in v1), `X-Plugin-Version`.
+Headers: `Content-Type: application/json`, `Accept: text/event-stream`, `X-Plugin-Version`, and who pays for the model (since 4.1, see “Providers and billing”): `Authorization: Bearer <license>` for a subscription, or `X-Provider-Key` with a `provider` block for the server's own key. The v1 header `X-OpenRouter-Token` still works as such a key with the default models.
 
 ```json
 {
@@ -163,6 +163,96 @@ Endpoints for the plugin's `/allay new`, `/allay memory`, and `/allay forget`:
 | `GET /api/v2/users/{user_id}/memories` | `200 { "memories": [{ "id": "k3f9a", "text": "…", "created_at": "ISO-8601" }] }`, oldest first |
 | `DELETE /api/v2/users/{user_id}/memories` | `200 { "deleted": 4 }`: all of them |
 | `DELETE /api/v2/users/{user_id}/memories/{id}` | `200 { "deleted": 1 }`, or `404` |
+
+## Providers and billing
+
+Since 4.1. A server pays for the model one of two ways, and the plugin picks with `provider.mode` in its config.
+
+### Bring your own key (BYOK)
+
+The request carries the server's own key in `X-Provider-Key` and the rest in the body:
+
+```json
+"provider": {
+  "base_url": "https://openrouter.ai/api/v1", // any OpenAI-compatible API; empty means OpenRouter
+  "model": "openai/gpt-6-luna",              // empty means the backend's default model
+  "search_model": "perplexity/sonar"         // empty: the run gets no search_web
+}
+```
+
+The backend uses the key for this run only. It never stores it, never logs it, and blanks it out of every error message it passes on. OpenRouter gets OpenRouter's own provider; any other `base_url` gets a plain OpenAI-compatible client. On a backend with billing on, `base_url` must be `https://` and resolve to a public address.
+
+The model must call tools. For OpenRouter the backend checks the model's `supported_parameters` before the run; for other APIs it reads the provider's refusal. Errors before the stream starts:
+
+| Code | Status | Meaning |
+|---|---|---|
+| `PROVIDER_AUTH_FAILED` | 401 | The provider refused the key |
+| `MODEL_NOT_FOUND` | 400 | The provider doesn't know this model |
+| `MODEL_NO_TOOLS` | 400 | The model can't call tools; Allay needs that |
+| `PROVIDER_URL_REJECTED` | 400 | `base_url` isn't https, or points into a private network |
+| `RATE_LIMITED` | 429 | Too many questions from this server; `retry_after` (seconds) says when to come back |
+
+The same codes can arrive as an `error` event when the provider only fails mid-run. On a backend with billing on, BYOK is free and limited per server (`server.id`, or the client address without one): 20 questions a minute, 2000 a day, 4 at once.
+
+`X-OpenRouter-Token` without a `provider` block is BYOK on OpenRouter with the backend's default models.
+
+### Subscription (hosted)
+
+Without a key, the request runs on the backend's own key and models. The plugin sends `Authorization: Bearer <license>`, where the license is `<license id>.<secret>` from `POST /api/v2/license`. The backend ignores everything the plugin says about the model.
+
+| Code | Status | Meaning |
+|---|---|---|
+| `LICENSE_REQUIRED` | 402 | No license and no key |
+| `LICENSE_INVALID` | 401 | Unknown license or wrong secret |
+| `SUBSCRIPTION_INACTIVE` | 402 | Nothing paid for now, or the period ended |
+| `QUOTA_EXCEEDED` | 402 | This period's limit is spent; `resets_at` (ISO-8601) says when it refills, absent when only a new payment helps |
+
+Before a stream these come as `{ "error": { "code", "message", "resets_at"?, "retry_after"? } }`.
+
+The limit is a budget in US dollars: what the server's questions really cost, counting the model, web search, and the session summaries. Each run is charged when it ends, so one run can overshoot a little.
+
+A backend with billing off (`SELFHOSTED=1`, as on a server's own backend) never asks for a license: it serves everyone on its own key, and BYOK still works without limits.
+
+### License endpoints
+
+| Request | Answer |
+|---|---|
+| `POST /api/v2/license` without `Authorization` | `200 { "license": "<id>.<secret>", "license_id", "claim_code", "pay_url": "https://t.me/<bot>?start=<claim code>", "claim_expires_at" }`: a new license. The plugin keeps `license` in `plugins/Allay/license.key` and shows `pay_url` |
+| `POST /api/v2/license` with `Authorization: Bearer <license>` | The same shape without `license`: a fresh claim code for the existing license |
+| `GET /api/v2/license` with `Authorization` | `200` with the status below |
+| any of them with billing off | `200 { "billing": false }` |
+
+Both `POST`s take an optional body `{ "name": "…" }` (≤ 64 chars): the server's name as the bot shows it to the payer. The plugin sends its MOTD without formatting codes.
+
+The status:
+
+```json
+{
+  "billing": true,
+  "license_id": "k3f9a2…",
+  "linked": true,                         // a Telegram account claimed it
+  "active": true,
+  "plan": "month",                        // week | month | year; null before the first payment
+  "paid_until": "2026-11-14T10:00:00Z",   // null before the first payment
+  "renews": true,                         // a Telegram Stars subscription renews it by itself
+  "quota": { "used_percent": 62, "resets_at": "2026-11-14T10:00:00Z" },
+  "last_payment_at": "2026-10-14T10:00:00Z"
+}
+```
+
+`quota.resets_at` is when the current budget ends: the period's end, or for a year the next monthly refill. A claim code works once and for 24 hours. The plugin polls the status every few minutes, tells online operators when `last_payment_at` changes, when `used_percent` passes 80 and 100, and three days before `paid_until`.
+
+### Paying
+
+`https://t.me/<bot>?start=<claim code>` opens the backend's Telegram bot. `/start <claim code>` ties the license to that Telegram account and shows the plans; payment goes in Telegram Stars.
+
+| Plan | Stars | Period | Budget |
+|---|---|---|---|
+| `week` | 150 | 7 days | $0.75 |
+| `month` | 500 | 30 days, renews by itself as a Stars subscription | $3.00 |
+| `year` | 10 000 | 365 days | $6.00 a month, refilled every 30 days |
+
+A payment while a period runs adds its budget at once and moves `paid_until` further.
 
 ## Compatibility
 

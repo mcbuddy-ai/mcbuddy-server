@@ -57,6 +57,27 @@ The lasting memory sits in MongoDB and never expires. It's up to 30 short facts:
 
 > Pending tool calls live in the process's memory, so the server assumes a single instance. With several, the tool result must reach the instance that holds the stream.
 
+### Who pays for the model
+
+A Minecraft server picks one of two ways in the plugin's config:
+
+- 🔑 **Its own key (BYOK).** The plugin sends a key for OpenRouter or any OpenAI-compatible API in `X-Provider-Key`, plus the base URL, the model, and a search model. The backend uses the key for that one run and never stores or logs it. The model must call tools: before a run the backend checks the key and the model, and answers with a clear code (`PROVIDER_AUTH_FAILED`, `MODEL_NOT_FOUND`, `MODEL_NO_TOOLS`) that the plugin explains to operators. Without a search model, the run has no web search.
+- ⭐ **A subscription.** The server runs on the backend's own key and models, which the plugin can't change. An operator runs `/allay link`: the backend makes a license, which the plugin keeps in `license.key`, and a one-time link to the backend's Telegram bot. There the admin pays in Telegram Stars.
+
+| Plan | Stars | Period | Limit |
+|---|---|---|---|
+| Week | 150 | 7 days | $0.75 of model costs |
+| Month | 500 | 30 days, renews by itself | $3.00 |
+| Year | 10 000 | 365 days | $6.00 a month, refilled every 30 days |
+
+The limit counts what the server's questions really cost: the model, web search, and session summaries. A payment while a period runs adds its limit at once and moves the end date. The plugin shows operators the limit as a percentage and never in dollars.
+
+On a backend with billing on, BYOK is free but limited per server to 20 questions a minute, 2000 a day, and 4 at once. Its base URL must be `https://` and public, so nobody reaches the backend's own network through it.
+
+**Self-hosted backends.** Set `SELFHOSTED=1`, and billing is off: the backend serves every request on its own key, nobody needs a license, BYOK works without limits, and the plugin needs no `/allay link`. Without the variable, billing is on, so a server that runs its own backend should set it.
+
+The old `X-OpenRouter-Token` header still works, as BYOK on OpenRouter with the backend's models.
+
 ### Examples
 
 ```bash
@@ -72,7 +93,7 @@ curl -N -X POST https://allay.chat/api/v2/chat \
   -d '{"mode": "ask", "message": "what should I do next?", "user_id": "5627dd98-...", "player": {"name": "Steve"}, "tools": ["get_inventory"]}'
 ```
 
-Players and bots can send `X-OpenRouter-Token: sk-or-...` to use their own OpenRouter key and billing.
+Send your own key with `-H "X-Provider-Key: sk-or-..."`, or a license with `-H "Authorization: Bearer <license>"`.
 
 ## Environment
 
@@ -91,6 +112,15 @@ Players and bots can send `X-OpenRouter-Token: sk-or-...` to use their own OpenR
 | `CHAT_TTL_SECONDS` | How long a chat session lives after the last question | `86400` |
 | `PUBLIC_CHAT_TTL_SECONDS` | How long a server's thread of public questions lives after the last one | `7200` |
 | `CALC_TIMEOUT_MS` | How long `exact_calculations` gives one expression | `1000` |
+| `SELFHOSTED` | `1` turns billing off: everyone runs on this backend's key | unset, so billing is on |
+| `API_URL` | The backend's public address; the Telegram webhook goes to `API_URL/api/telegram/webhook` | `https://allay.chat` |
+| `TELEGRAM_BOT_TOKEN` | The payment bot's token; without it there are no payment links | unset |
+| `TELEGRAM_ADMIN_IDS` | Telegram user ids, comma-separated, that may `/refund <charge id>` in the bot | unset |
+| `TELEGRAM_WEBHOOK_SECRET` | The webhook's secret token | derived from the bot token |
+| `TELEGRAM_POLLING` | `1` takes updates by long polling instead of the webhook, for local runs | unset |
+| `TELEGRAM_API_URL` | A Bot API server of your own | `https://api.telegram.org` |
+| `TELEGRAM_TEST_ENV` | `1` talks to Telegram's test environment | unset |
+| `PLAN_STARS` | Other prices, such as `week=1,month=1,year=1` for a test payment you refund | unset |
 
 Prompts live in [src/prompts](src/prompts) (`minecraft-ask.md`, `minecraft-askx.md`, `telegram.md`) and ship inside the build. Each run appends who asks, their language, the server version, and the available tools. Remove old `SYSTEM_MESSAGE*` variables to switch to the new prompts. The old `SYSTEM_MESSAGE*` variables are no longer read. A `perplexity/…` main model can’t call tools, so the server moves it to search and answers with the default model.
 
@@ -221,14 +251,11 @@ bun run start
 
 ### Runtime Configuration
 
-API users can override the OpenRouter token with their own:
+A request can bring its own key instead of the backend's; see “Who pays for the model” above.
 
 ```bash
-# Send header in request:
-X-OpenRouter-Token: sk-or-your-custom-token
+X-Provider-Key: sk-or-your-key
 ```
-
-This allows using your own OpenRouter billing and pricing.
 
 ## Tech Stack
 

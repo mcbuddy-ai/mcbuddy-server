@@ -19,11 +19,27 @@ The backend of Allay, an AI helper for Minecraft players and a Telegram bot. A M
 | `src/agent/` | The agent runner, prompt assembly, the session summarizer, askx command validation |
 | `src/prompts/*.md` | The system prompts, bundled into the build; the only place to change them |
 | `src/infrastructure/` | The Redis session (v1 history key plus `chat_summary:*`), memories in MongoDB, the OpenRouter provider |
+| `src/features/billing/` | Who pays for a run (`gate.ts`): the server's own key (BYOK, with `byok.ts` checking the URL, the key, and the model), or a license with money left. Plans and budget windows (`plans.ts`), licenses (`billing.ts`), `/api/v2/license`, the per-server limits |
+| `src/features/telegram/` | The payment bot: the webhook at `/api/telegram/webhook` (or polling), `/start <claim code>`, Stars invoices, pre-checkout, payments, renewals, `/status`, `/refund`, texts in en, ru, es, pt, de |
+| `src/infrastructure/billing/` | Licenses, budget windows (grants), and payments in MongoDB, plus an in-memory store for tests |
 | `docs/protocol-v2.md` | The contract with the plugin. Change it only additively, and change the plugin (allay-ai/minecraft) to match |
 
 The tool bridge keeps pending calls in memory, so the backend runs as one instance.
 
 The build bundles `src/features/tools/calc.worker.ts` next to the entrypoint; `exact-calculations.tool.ts` finds it by a computed name so the bundler leaves the path alone. Keep both in `bun run build`.
+
+## Billing
+
+The owner settled these on 2026-10-14; change them only when the owner asks.
+
+- **Two ways to pay.** BYOK, free on our backend, limited per server to 20 questions a minute, 2000 a day, 4 at once; or a subscription on our key and models, which the plugin can't change.
+- **No free trial.** A server pays before its first hosted question.
+- **The limit is money, not questions.** Each plan is a budget in US dollars of what the server's runs really cost: model steps, `search_web`, and session summaries, all through `RunOptions.spend`. Operators see it as a percentage, never in dollars; players see only that the limit is used up.
+- **Plans** (`plans.ts`): week 150 ⭐ for $0.75, month 500 ⭐ for $3.00 as a Stars subscription that renews every 30 days, year 10 000 ⭐ (Telegram's cap) for $6.00 a month refilled every 30 days. A payment during a period adds its budget at once and moves the end date.
+- **How the prices came about.** A question measured on `openai/gpt-6-luna` costs about $0.0007; a Perplexity search about $0.005, in roughly every fifth question; with summaries and OpenRouter's 5.5% fee, about $0.003 a question with a margin. Hosting allay.chat adds about $10 a month. A Star brings us about $0.013 (buyers pay $0.015–0.02). At full use the plans return ×2.2, ×1.85, and ×1.66 of their cost; servers typically use far less. Measure again before changing the model or the prices.
+- **Self-hosted backends** set `SELFHOSTED=1`: billing off, everyone on the backend's key, no license, BYOK without limits. Moonlands needs it in its `compose.yaml` before it runs 4.1.
+- **Never** log a provider key, a license secret, or a claim code. The bot token sits in `~/.secrets/cloud.env` and the Keychain as `ALLAY_TELEGRAM_BOT_TOKEN`, and reaches the backend as `TELEGRAM_BOT_TOKEN`.
+- Switching allay.chat to require a subscription stops servers that use it today; agree on the date with the owner first.
 
 ## Deploying
 
