@@ -8,7 +8,7 @@
 [![MongoDB](https://img.shields.io/badge/MongoDB-8.0.15-47A248?style=flat&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
 [![Redis](https://img.shields.io/badge/Redis-8.2-DC382D?style=flat&logo=redis&logoColor=white)](https://redis.io/)
 
-**Язык**: 🇷🇺 Русский | [🇺🇸 English](README.EN.md) | [🇨🇳 中文](README.CN.md)
+[English version](https://github.com/mcbuddy-ai/mcbuddy-server/blob/master/README.md)
 
 🛠️⚡ Бэкенд для AI-ассистента MCBuddy — агент на [Mastra](https://mastra.ai) поверх OpenRouter, который отвечает игрокам в Minecraft и в Telegram. В игре он видит, что происходит с игроком: инвентарь, здоровье, что вокруг, рецепты этого сервера. Свежие факты он ищет в интернете сам, когда это нужно.
 
@@ -195,32 +195,20 @@ AI-инструменты использовались точечно для р�
 
 Переход на Mastra и протокол v2 (агент с инструментами, стриминг, новые промпты, тесты) целиком сделан AI-агентом Claude по моей постановке.
 
-## Ссылки на связанные проекты
+## Связанные проекты
 
-[McBuddy Spigot](https://github.com/mcbuddy-ai/mcbuddy-spigot) — плагин для Minecraft серверов с командой `/ask` и `/askx`
+[MCBuddy Spigot](https://github.com/mcbuddy-ai/mcbuddy-spigot) — 💬 приводит MCBuddy в игру: спрашивайте AI о чём угодно через `/ask` прямо в чате, каждый игрок — на своём языке. 🎮
 
-[McBuddy Telegram](https://github.com/mcbuddy-ai/mcbuddy-bot) — Telegram бот для общения с MCBuddy
+## От того же автора
 
-## Из серии "от того же автора"
+[Mo’Joins](https://github.com/MairwunNx/mojoins) — 🎉 встречает игроков на их языке: строки входа и выхода, приветствие новичкам, звуки и частицы.
 
-[Xi Manager](https://github.com/mairwunnx/xi) — 🀄️ Telegram-бот с ИИ, стилизованный под личного помощника Xi. Личный помощник великого лидера, готовый отвечать на вопросы простого народа.
+[Mo’Afks](https://github.com/MairwunNx/moafks) — 🛡️ безопасный AFK-режим: никакого урона и толчков, мобы не замечают, а AFK-игроки не мешают пропустить ночь.
 
-[Dickobrazz](https://github.com/mairwunnx/dickobrazz) — 🌶️ Дикобраз бот, он же дикобот, способен в точности до сантиметра выдать размер вашего агрегата, краника или валыны, не обижайтесь, если не удалось понтануться большим прибором, это всего лишь шутка.
+[Mo’Bosses](https://github.com/mairwunnx/mobosses) — 🏆 RPG-плагин, который превращает обычных мобов в эпичных боссов, с глубокой прокачкой игрока.
 
-[Louisepizdon](https://github.com/MairwunNx/louisepizdon) — 🥀 Луипиздон, Telegram-бот с ИИ, который честнее чем твоя бабушка. Оценит тебя по достоинству, разборка ценообразования твоих шмоток с фотографии!
+## Лицензия
 
-[Mo'Bosses](https://github.com/mairwunnx/mobosses) — 🏆 **Mo'Bosses** — это лучший RPG плагин, который превращает обычных мобов в эпических боссов с **продвинутой системой прогрессии игрока**. В отличие от других плагинов, здесь каждый бой имеет значение, а каждый уровень открывает новые возможности! ⚔
+MIT, см. [LICENSE](https://github.com/mcbuddy-ai/mcbuddy-server/blob/master/LICENSE).
 
-[Mo'Joins](https://github.com/mairwunnx/mojoins) — 🎉 Кастомные входы/выходы: сообщения, звуки, частицы, фейерверки и защита после входа. Все для PaperMC.
-
-[Mo'Afks](https://github.com/mairwunnx/moafks) — 🛡️ Пауза в онлайне — теперь возможна. Плагин для PaperMC, который даёт игроку безопасный режим AFK: иммунитет к урону, отсутствие коллизий, игнор мобами, авто-детект неактивности и аккуратные визуальные эффекты.
-
----
-
-![image](./media.png)
-
-🇷🇺 **Сделано в России с любовью.** ❤️
-
-*MCBuddy — это результат любви к игре Minecraft и современным технологиям. Проект создан для русскоязычного сообщества игроков, с заботой о качестве кода и пользовательском опыте.*
-
-> 🫡 Made by Pavel Erokhin (Павел Ерохин), aka mairwunnx.
+> 🫡 Сделал Павел Ерохин (Pavel Erokhin), он же mairwunnx.

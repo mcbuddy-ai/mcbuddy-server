@@ -1,11 +1,11 @@
 # MCBuddy Server: notes for AI agents
 
-The backend of MCBuddy, an AI buddy for Minecraft players and a Telegram bot. A Mastra agent on Bun answers questions through OpenRouter, looks up the player's game state through tools the Minecraft plugin runs, searches the web when it needs fresh facts, computes exactly, and remembers each player. README.MD explains it for humans; read it first.
+The backend of MCBuddy, an AI buddy for Minecraft players and a Telegram bot. A Mastra agent on Bun answers questions through OpenRouter, looks up the player's game state through tools the Minecraft plugin runs, searches the web when it needs fresh facts, computes exactly, and remembers each player. README.md explains it for humans, README.RU.md is its Russian copy; read README.md first.
 
 ## Talking to the owner
 
 - Reply in Russian, address the owner as «вы». Quotes «ёлочки», an em dash with spaces « — ».
-- Code, comments, commit messages, and docs/protocol-v2.md are in English. README.MD is Russian, README.EN.md and README.CN.md follow it.
+- Code, comments, commit messages, and docs/protocol-v2.md are in English. README.md is English; README.RU.md follows Russian typography. Change both together.
 
 ## How it fits together
 

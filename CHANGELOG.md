@@ -12,6 +12,7 @@ Needs MCBuddy Spigot 2.4: the tool set changed, and older plugins lose the tools
 - 🛡️ `/askx` gets only the tools that read the game: no actions, no operator tools.
 - 🌍 Server tools send `summary_key` and `summary_values` with their status, so the plugin shows “5 sources” in the player's language.
 - The prompt routes questions to the merged tools; descriptions lost the repeated “game data” suffix, since the prompt already says it.
+- README in English with a Russian copy, and the MIT license.
 - 📦 Releases are made by hand from the “Release” workflow; it tags the version, publishes `ghcr.io/mcbuddy-ai/mcbuddy-server:<version>`, and writes these notes to the GitHub release.
 
 ## 2.3.0
