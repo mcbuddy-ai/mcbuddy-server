@@ -11,18 +11,21 @@ Headers: `Content-Type: application/json`, `Accept: text/event-stream`, optional
 ```json
 {
   "mode": "ask",                      // "ask" answers a question; "askx" turns a request into commands
+  "visibility": "private",            // "public" when every player online sees the question and the answer (since 3.0)
   "message": "what should I do next?", // ≤ 1000 chars for ask, ≤ 500 for askx
   "platform": "minecraft",
   "user_id": "5627dd98-e6be-3c21-b8a8-e92344183641",
   "locale": "ru_ru",
   "timezone": "Europe/Moscow",
   "player": { "name": "Steve", "uuid": "5627dd98-…", "op": false },
-  "server": { "software": "Paper", "version": "26.3", "plugin_version": "2.0.0" },
+  "server": { "id": "0f8c…", "software": "Paper", "version": "26.3", "plugin_version": "3.0.0" },
   "tools": ["get_player_status", "get_inventory", "get_surroundings", "look_at", "get_world", "get_statistics", "get_advancements", "get_recipes", "locate_structure", "get_server"]
 }
 ```
 
 `timezone` is the asker's IANA time zone (optional, since 2.3). The backend puts their real date and time in front of each `ask` question, as `[Mon, 12 Oct 2026, 23:42 Europe/Moscow] question`, and keeps it in the session history; without it the time is UTC.
+
+`visibility` (since 3.0) is `private` by default. `public` marks a question from `/askall` or `?` in chat mode: the plugin shows the question and the answer to every player online, the prompt tells the model so, and the run goes without `write_book`. `askx` is always private. A public question reads and extends the server's shared thread instead of the asker's session (see “Conversation memory”); `server.id`, a random id the plugin keeps for its server, names that thread.
 
 `tools` lists the client tools this plugin offers (server admins can switch some off). The backend registers only those for this run. The plugin lists operator tools only when the asking player is an operator, and the backend drops them anyway when `player.op` is false. An `askx` run gets only the tools that read the game: no actions (`point_to`, `reminders`, `goals`, notes, buttons, books) and no operator tools.
 
@@ -69,7 +72,7 @@ Answers: `200 { "accepted": true }`, `404` unknown or finished run or call, `409
 | `get_recipes` | `{ "item": "beacon" }` | item, recipes [{type, shape?, key?, ingredients?, input?, seconds?, experience?, template?, base?, addition?, makes?}] up to 5, more_recipes. Crafting, cooking, stonecutting, and smithing only |
 | `locate_structure` | `{ "structure": "village" }` | `{ found, structure, x, z, distance, direction }` within `tools.locate_structure_radius` chunks, or `{ found: false, radius_blocks }` |
 | `locate_biome` | `{ "biome": "cherry_grove" }` | `{ found, biome, x, y, z, distance, direction }` within `tools.locate_biome_radius` blocks, searched like `/locate biome`; a part of a name matches |
-| `get_server` | – | software, version, online, max_players, plugin_version |
+| `get_server` | – | software, version, online, max_players, plugin_version, plugins [{name, version, description?}]: the enabled plugins, minus those the admin hides in `tools.server.hidden_plugins`; description ≤ 120 chars (since 3.0) |
 | `get_locations` | – | respawn_point, world_spawn, last_death: each {x, y, z, dimension, distance?, direction?} or null |
 | `get_death_info` | – | place {x, y, z, dimension, distance?, direction?}, minutes_ago, kept_inventory, dropped {id: count}, dropped_experience, area_loaded, items_on_ground and seconds_until_first_despawn when loaded. Drops are known only since the last plugin start |
 | `find_villagers` | `{ "item"?: "enchanted_book", "profession"?: "librarian", "radius"?: 4–64 }` | radius, villagers (up to 10, nearest first) [{profession, level?, x, y, z, distance, direction, trades [trade] (up to 10; with `item`, only those trades)}] |
@@ -94,6 +97,8 @@ Answers: `200 { "accepted": true }`, `404` unknown or finished run or call, `409
 | `add_buttons` | `{ "buttons": [{ "type", "label", "question"?, "x"?, "y"?, "z"?, "dimension"?, "text"?, "item"? }] }` | Puts up to 5 buttons under the answer. `ask` asks `question` on click; `point` shows the way to x, y, z; `note` saves `text` with x, y, z; `recipe` opens the recipe window for `item`; `enchants` the enchanting window for the item in hand; `villagers` the villager window, optionally for `item`. Returns `{ added, total }` |
 | `write_book` | `{ "title": "≤ 32", "text": "≤ 8000" }` | Writes the text into a book and adds buttons to open and take it under the answer; returns `{ pages }` |
 | `set_timezone` | `{ "zone": "Asia/Yekaterinburg" }` | Stores the player's IANA zone for later requests; returns `{ zone, local_time }` |
+| `get_buddy_guide` | – | Since 3.0. How MCBuddy works for this player here: plugin_version, commands [{usage, does}] they have permission for, chat_mode {prefixes {"!", "?", "~"}: what each does, only those this player may use}, settings {chat_mode, hints, timezone}, features [names of what the server has on: notes, goals, reminders, windows, books, buttons, compass, sorting, operator_tools], limits {notes, reminders, goals, public_cooldown_seconds} |
+| `buddy_settings` | `{ "chat_mode"?: bool, "hints"?: bool }` | Since 3.0. Changes the player's settings, as `/buddy chat` and `/buddy hints` do; turning chat mode on also sends the plugin's explanation. Returns `{ chat_mode, hints }`. An action: not for `askx` |
 
 A `trade` is `{ buy: [item], sell: item, left, max_uses }`; `buy` is what this player pays now, with demand and discounts, and a book's `sell` carries `stored_enchantments`.
 
@@ -145,9 +150,10 @@ All server tools report progress only through `tool_status` (kind `server`).
 The backend keeps two things per `user_id`:
 
 - **The session.** At least the last 8 exchanges verbatim plus a short summary of everything older. Once 12 pile up, the backend folds the oldest into the summary with the model, after the answer is out. A session lives 24 hours after the last question. `/askx` requests land in it as one short exchange (the request and the commands or the refusal), so a later `/ask` knows what was done.
+- **The server's public thread** (since 3.0). Public questions with a `server.id` go to `public:<server.id>` instead of the asker's session, each question prefixed with the asker's name in brackets, so a follow-up from another player continues the talk. It folds like a session and lives 2 hours after the last question (`PUBLIC_CHAT_TTL_SECONDS`). Without `server.id` a public question uses the asker's session.
 - **Memories.** Lasting facts the model saves with `remember`, kept in MongoDB without expiry. They go into the system prompt with their ids.
 
-Endpoints for the plugin's `/ask new`, `/ask memory`, and `/ask forget`:
+Endpoints for the plugin's `/buddy new`, `/buddy memory`, and `/buddy forget`:
 
 | Request | Answer |
 |---|---|

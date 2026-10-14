@@ -2,6 +2,16 @@
 
 The “Release” workflow takes the notes for a version from its section here, unless you type them into its `changelog` field.
 
+## 3.0.0
+
+For MCBuddy Spigot 3.0. Older plugins keep working: everything new is optional in the request.
+
+- 📣 **Public questions.** `visibility: "public"` marks a question every player online sees (`/askall`, or `?` in chat mode). The prompt keeps the asker's coordinates, notes, and memories out of the answer, and the run goes without a book.
+- 🧵 **A shared thread per server.** Public questions go to their own thread, named by the plugin's `server.id`, with the asker's name in front of each question. A friend's follow-up continues the talk. The thread lives 2 hours (`PUBLIC_CHAT_TTL_SECONDS`).
+- 📖 **MCBuddy explains itself.** `get_buddy_guide` asks the plugin which commands, chat prefixes, settings, and features this player has; the prompt sends every “what can you do?” and “how do I…” there instead of guessing. `buddy_settings` turns chat mode and its tip on or off when the player asks in words.
+- 🧩 **Plugins.** `get_server` describes the plugin list the plugin now sends, and the prompt calls it when a question may touch a plugin.
+- The prompts know chat mode: plain text, `!` for commands, `?` for everyone, `~` for the ordinary chat.
+
 ## 2.4.1
 
 - `/api/health` reports the release version instead of “1.0.0”; builds from master say `dev-<commit>`.

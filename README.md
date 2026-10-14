@@ -41,11 +41,17 @@ The backend puts the player’s real date and time in front of each Minecraft qu
 
 Besides the text, the agent puts buttons under its answer (`add_buttons`): options for an ambiguous question, a next question, the way to coordinates, and the recipe, enchanting, and villager windows. When the player asks for detail, it writes the answer into a book (`write_book`), and it sets goals like “collect 16 diamonds” as a bar at the top of the screen (`goals`).
 
+The agent also knows MCBuddy itself. Asked “what can you do?” or “how do I turn off chat mode?”, it calls `get_buddy_guide`: the plugin answers with the commands this player may use, chat mode's prefixes, their settings, and what this server has switched on. So the agent never names a command that isn't there. `buddy_settings` turns chat mode and its tip on or off when the player asks in words. `get_server` lists the server's plugins with versions, so a question about graves or land claims gets an answer for the plugin that really runs.
+
+A question from `/askall` comes with `visibility: "public"`: every player online sees it and the answer. The prompt tells the agent not to reveal the asker's coordinates, notes, or memories, and the run goes without a book.
+
 ### Memory
 
 Each player has a session and a lasting memory. The session lives in Redis for 24 hours after the last question. It holds the last 8 to 12 questions verbatim and a short summary of everything before them. The model writes that summary after the answer, so the player never waits for it. `/askx` requests land in the session as one line: what was asked and which commands came out.
 
-The lasting memory sits in MongoDB and never expires. It's up to 30 short facts: where the base is, what the player is working on, how they like answers. The agent saves them itself and says so. The plugin gives players `/ask new`, `/ask memory`, and `/ask forget` through the `/api/v2/users/{user_id}/…` endpoints described in the protocol.
+Public questions have their own thread, one per server, apart from players' sessions. Each question there starts with the asker's name, so when a friend follows up on someone else's question, the agent knows what it's about. The thread lives 2 hours after the last question.
+
+The lasting memory sits in MongoDB and never expires. It's up to 30 short facts: where the base is, what the player is working on, how they like answers. The agent saves them itself and says so. The plugin gives players `/buddy new`, `/buddy memory`, and `/buddy forget` through the `/api/v2/users/{user_id}/…` endpoints described in the protocol.
 
 `POST /api/ask` and `POST /api/askx` work as before for the Telegram bot and plugins older than 2.0: the same agent without game tools, one JSON answer. The session is shared between both API versions.
 
@@ -83,6 +89,7 @@ Players and bots can send `X-OpenRouter-Token: sk-or-...` to use their own OpenR
 | `MAX_ACTIVE_RUNS` | Streaming questions at once | `200` |
 | `SSE_PING_MS` | Ping interval that keeps proxies from closing the stream | `15000` |
 | `CHAT_TTL_SECONDS` | How long a chat session lives after the last question | `86400` |
+| `PUBLIC_CHAT_TTL_SECONDS` | How long a server's thread of public questions lives after the last one | `7200` |
 | `CALC_TIMEOUT_MS` | How long `exact_calculations` gives one expression | `1000` |
 
 Prompts live in [src/prompts](src/prompts) (`minecraft-ask.md`, `minecraft-askx.md`, `telegram.md`) and ship inside the build. Each run appends who asks, their language, the server version, and the available tools. Remove old `SYSTEM_MESSAGE*` variables to switch to the new prompts. The old `SYSTEM_MESSAGE*` variables are no longer read. A `perplexity/…` main model can’t call tools, so the server moves it to search and answers with the default model.
