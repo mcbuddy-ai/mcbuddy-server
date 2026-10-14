@@ -18,13 +18,13 @@ Headers: `Content-Type: application/json`, `Accept: text/event-stream`, optional
   "timezone": "Europe/Moscow",
   "player": { "name": "Steve", "uuid": "5627dd98-…", "op": false },
   "server": { "software": "Paper", "version": "26.3", "plugin_version": "2.0.0" },
-  "tools": ["get_player_status", "get_inventory", "get_surroundings", "get_target", "get_world", "get_statistics", "get_advancements", "get_recipes", "locate_structure", "get_server"]
+  "tools": ["get_player_status", "get_inventory", "get_surroundings", "look_at", "get_world", "get_statistics", "get_advancements", "get_recipes", "locate_structure", "get_server"]
 }
 ```
 
 `timezone` is the asker's IANA time zone (optional, since 2.3). The backend puts their real date and time in front of each `ask` question, as `[Mon, 12 Oct 2026, 23:42 Europe/Moscow] question`, and keeps it in the session history; without it the time is UTC.
 
-`tools` lists the client tools this plugin offers (server admins can switch some off). The backend registers only those for this run. The plugin lists operator tools only when the asking player is an operator, and the backend drops them anyway when `player.op` is false.
+`tools` lists the client tools this plugin offers (server admins can switch some off). The backend registers only those for this run. The plugin lists operator tools only when the asking player is an operator, and the backend drops them anyway when `player.op` is false. An `askx` run gets only the tools that read the game: no actions (`point_to`, `reminders`, `goals`, notes, buttons, books) and no operator tools.
 
 ## Response: Server-Sent Events
 
@@ -35,7 +35,7 @@ Headers: `Content-Type: application/json`, `Accept: text/event-stream`, optional
 | `start` | `{ "run_id": "uuid", "model": "…" }` | The run began; `run_id` addresses tool results |
 | `reasoning` | `{ "delta": "…" }` | A piece of the model's reasoning, when the model exposes it |
 | `tool_call` | `{ "call_id": "…", "name": "get_inventory", "args": { … } }` | The plugin must run this client tool and post the result |
-| `tool_status` | `{ "call_id": "…", "name": "search_web", "kind": "client" \| "server", "state": "started" \| "finished" \| "failed", "args": { … }, "summary": "5 sources" }` | Progress of any tool, for display. Client tools get `started` right before `tool_call` |
+| `tool_status` | `{ "call_id": "…", "name": "search_web", "kind": "client" \| "server", "state": "started" \| "finished" \| "failed", "args": { … }, "summary": "5 sources", "summary_key"?: "sources", "summary_values"?: { "count": 5 } }` | Progress of any tool, for display. Client tools get `started` right before `tool_call`. Since 2.4, server tools add `summary_key` and `summary_values` so the plugin can show the summary in the player's language; `summary` stays in English |
 | `text` | `{ "delta": "…" }` | A piece of the answer |
 | `commands` | `{ "is_sequence": true, "commands": ["give @s diamond_sword 1"] }` | askx only: the commands to run (≤ 12, no leading slash) |
 | `usage` | `{ "input_tokens": 0, "output_tokens": 0, "reasoning_tokens": 0, "cost": 0.0 }` | Totals for the run so far: sent after every model step and once more, final, right before `done`. Each one replaces the last |
@@ -55,52 +55,47 @@ Answers: `200 { "accepted": true }`, `404` unknown or finished run or call, `409
 
 ## Client tools (run by the plugin, on the server thread, about the asking player only)
 
+2.4 merged and reshaped tools, and the backend serves only the 2.4 set: plugins before 2.4 lose the tools whose names changed. Every spot comes as absolute `x`, `y`, `z` with `distance` (horizontal, in blocks) and `direction` (north, north-east…); dimensions are `overworld`, `the_nether`, `the_end`, and tools accept Bukkit's old `normal` and `nether` too.
+
 | Name | Args | Returns |
 |---|---|---|
-| `get_player_status` | – | gamemode, health, max_health, food, saturation, level, exp_progress, location {x,y,z}, dimension, biome, light, facing, flying, effects [{type, level, seconds}], held_item |
-| `get_inventory` | `{ "include_enderchest"?: bool }` | main [item], armor {head, chest, legs, feet}, offhand, enderchest?; each item as described in “Items” below. Since 2.4, `inside_containers` {id: count} totals what the shulker boxes and bundles in main and offhand hold |
-| `get_surroundings` | `{ "radius"?: 1–16 }` default 8 | most common blocks with counts, notable blocks (ores, chests, spawners, portals…) with offsets from the player, entities within 32 blocks grouped by type with count, nearest distance, hostile flag; other players only as a count |
-| `get_target` | – | the block (6 blocks) or entity (16 blocks) under the crosshair |
-| `get_world` | – | day time (ticks and phase), day number, moon phase, weather, difficulty, dimension, a few rules that matter for advice (keep_inventory, mob_griefing, players_sleeping_percentage, do_insomnia…), border size |
-| `get_statistics` | – | play time, deaths, mob kills, player kills, distance walked/flown, jumps, time since death, time since rest (phantoms) |
-| `get_advancements` | `{ "filter"?: "done" \| "todo" }` | advancement titles and descriptions; recipes excluded |
-| `get_recipes` | `{ "item": "beacon" }` | how this server crafts or smelts the item: shaped grid, ingredients, results |
-| `locate_structure` | `{ "structure": "village" }` | nearest structure within a capped radius, with distance and direction; off when the admin disables it |
-| `get_server` | – | software, version, difficulty, online player count, plugin version |
-| `get_locations` | – | the player's respawn point (bed or anchor; null when none), the world spawn, and the last death location, each with x, y, z, dimension, distance, and direction from the player when in the same dimension |
-| `get_villager_trades` | – | the villager or wandering trader under the crosshair (8 blocks): profession, level, trades [{buy: [{id, count}], sell: {id, count, enchantments?}, uses, max_uses}] |
-| `point_to` | `{ "x": 0, "y": 64, "z": 0, "label"?: "base", "seconds"?: 1–30 }` | Points the player's compass at the spot (same dimension) and draws a particle trail toward it that only this player sees, for `seconds` (default 2). Returns distance and direction |
-| `sort_inventory` | – | Merges stacks and sorts the main inventory (slots 9–35) by item; the hotbar, armor, and offhand stay put. Returns how many stacks were merged |
-| `set_reminder` | `{ "minutes": 1–120, "text": "≤ 100 chars" }` | Reminds the player in chat with a sound after the delay and returns the reminder's `id`; at most 10 pending per player by default (`tools.reminders.max_pending`); lost on a server restart or when the player leaves |
-| `get_reminders` | – | the player's pending reminders, soonest first: [{id, text, minutes_left, due_at}] |
-| `cancel_reminder` | `{ "id": "k3f9" }` or `{ "all": true }` | Cancels one reminder or all of them; returns `{ cancelled }` |
-| `ping_me` | – | A sound and particles above the player that everyone nearby sees and hears, to find them in a crowd or a cave |
-| `add_note` | `{ "text": "≤ 200 chars", "here"?: true, "x"?, "y"?, "z"?, "dimension"? }` | Writes a note in the player's notebook, kept on disk across restarts (200 per player by default, `tools.notes.max_per_player`). By default it records where the player stands; with `here: false` it takes `x`, `z` (and optional `y`, `dimension`), or no place at all. Returns `{ id, text, x?, y?, z?, dimension? }` |
-| `find_notes` | `{ "query"?: "arrows", "near"?: true, "limit"?: 1–50 }` | `{ matched, total, notes: [{id, text, x?, y?, z?, dimension?, distance?, direction?, created_at}] }`, nearest first. `query` matches text case-insensitively; when nothing matches, `matched` is false and every note comes back, so the model can match by meaning |
-| `delete_note` | `{ "id": "k3f9" }` | Deletes a note; an unknown id is an error |
-| `get_container` | `{ "detail"?: bool }` | the container under the crosshair (6 blocks): type, custom name, slots, used_slots, items {id: count} biggest first, inside_shulker_boxes {id: count}, and since 2.4 inside_bundles {id: count}. With `detail` (since 2.4), `stacks` [item with slot] up to 54 and `more_stacks` replace `items`, `inside_shulker_boxes`, and `inside_bundles` |
-| `scan_nearby_containers` | `{ "item"?: "redstone", "radius"?: 1–12 }` default 8 | up to 20 containers nearest first with offsets dx, dy, dz; with `item`, only containers holding it, each with `count`, plus `total_<item>`; without it, used_slots and the top 4 items |
-| `get_block_info` | – | the block under the crosshair: id, hardness, blast_resistance, preferred_tool, needs_tier, held_tool_is_right, break_seconds with the held item, drops_with_held_item, age/max_age for growing blocks, waterlogged, block_light, sky_light |
-| `get_item_durability` | – | hotbar, armor, and offhand items that wear: slot, id, remaining, max, percent, unbreaking and expected_uses, mending, almost_broken under 10% |
-| `get_xp_info` | `{ "target_level"?: 0–100 }` | level, progress, total_points, points_to_next_level, and points_to_target, from the vanilla formulas |
-| `get_food_options` | – | food, saturation, hunger_missing, and foods in the inventory [{id, count, hunger, saturation, note?}] by saturation; notes name side effects (rotten flesh, pufferfish, golden apples…) |
-| `get_map_info` | – | the filled map in either hand: scale_level, blocks_per_side, center_x, center_z, dimension, locked, player_inside |
-| `get_enchant_options` | – | the enchanting table under the crosshair: bookshelves that count (blocked by anything in the gap), top_offer_min_level and top_offer_max_level, player_level, lapis_in_inventory |
-| `get_mob_info` | – | the mob under the crosshair (16 blocks; never another player): type, health, max_health, armor, attack_damage, hostile, distance, and your_hit {weapon, damage_per_hit, hits_to_kill, estimate} counting armor and Sharpness, Smite, Bane of Arthropods |
-| `get_light_spawn_check` | `{ "radius"?: 1–16 }` default 8 | dark_spots where hostile mobs can spawn (solid floor, two free blocks, block light 0, within ±6 height) and the 10 nearest offsets |
-| `get_brewing_items` | – | brewing items in the inventory (potions with their type) and up to 4 brewing stands within 8 blocks: offsets, fuel_level, seconds_left, ingredient, fuel, bottles |
-| `scan_farm` | `{ "radius"?: 1–16 }` default 8 | crops by type {total, ripe, max_age, by_age}, farmland hydrated/dry, composter_levels, hoppers, spawners by mob, animals by type, within ±4 height |
-| `locate_biome` | `{ "biome": "cherry_grove" }` | nearest biome within `tools.locate_biome_radius` blocks (2048 by default), searched like `/locate biome`; a part of a name matches: `{ found, biome, x, y, z, distance, direction }` |
-| `get_death_info` | – | the last death: place {x, y, z, dimension, distance?, direction?}, minutes_ago, kept_inventory, dropped {id: count}, dropped_experience, area_loaded, items_on_ground and seconds_until_first_despawn when loaded. The drops are known only since the last plugin start |
-| `find_villagers` | `{ "item"?: "enchanted_book", "profession"?: "librarian", "radius"?: 4–64 }` | up to 10 traders nearest first: profession, level, x, y, z, distance, direction, trades [{buy, sell (with `book` {enchantment: level} for books), left}] |
-| `get_anvil_plan` | `{ "enchantments": { "sharpness": 5, "mending": 1 } }` | for the item in hand: item_repair_cost, steps [{left, right, levels}] where pieces are `item` or `<enchantment> <level>`, total_levels, too_expensive |
-| `inspect_item` | `{ "from"?: "hand" \| "offhand" \| "head" \| "chest" \| "legs" \| "feet" \| "inventory" \| "enderchest" \| "container", "slot"?: 0–53 }` | Since 2.4. One item in full: `from`, `slot`, everything an item has (below), plus lore (≤ 10 lines), unbreakable, attributes [{attribute, amount, operation, slot}], tooltip {attack_damage, attack_speed}, effects [{type, level, seconds \| instant}], dye_color, repair_cost, book {title?, author?, generation?, pages}, firework {flight?, explosions [{shape, colors, fade_colors?, trail?, twinkle?}]}, contents [item with slot] up to 27 and more_stacks. `slot` is required for inventory (0–35), enderchest (0–26), and container (the one under the crosshair, 6 blocks). `from` defaults to `hand` |
+| `get_player_status` | – | gamemode, health, max_health, food, saturation, level, level_progress, x, y, z, dimension, biome, light, facing, flying, effects [{type, level, seconds}], held_item |
+| `get_inventory` | `{ "include_enderchest"?: bool }` | main [item], armor {head, chest, legs, feet}, offhand, and inside_containers {id: count} with what the shulker boxes and bundles in main and offhand hold; with `include_enderchest`, enderchest [item] and enderchest_inside_containers. Items as in “Items” below |
+| `get_surroundings` | `{ "radius"?: 1–16 }` default 8 | radius, blocks {id: count} (top 12), notable [{id, x, y, z, distance, direction}] (ores, chests, spawners, portals; 15 nearest), entities [{type, count, nearest, hostile?}] within 32 blocks, other_players (a count only) |
+| `look_at` | `{ "detail"?: bool }` | What's under the crosshair. `kind: "nothing"`; or `kind: "block"` (within 6): id, state?, x, y, z, distance, hardness, blast_resistance, preferred_tool?, needs_tier?, held_tool_is_right, break_seconds?, drops_with_held_item [item], age/max_age?, waterlogged?, block_light, sky_light, plus container {name?, slots, used_slots, items {id: count}, more_kinds?, inside_shulker_boxes?, inside_bundles?} — or with `detail`, stacks [item with slot] up to 54 and more_stacks — and enchanting {bookshelves, counted_max, top_offer_min_level, top_offer_max_level, player_level, lapis_in_inventory}; or `kind: "entity"` (within 16): type, name?, distance, item? (dropped items, item frames), for living ones health, max_health, armor, attack_damage?, hostile, your_hit {weapon, damage_per_hit, hits_to_kill?, estimate}, for traders profession, level?, trades [trade]. Another player is only `{kind, type: "player", distance}` |
+| `get_world` | – | dimension, time, phase, day, moon, weather, difficulty, rules {…}, border |
+| `get_statistics` | – | play_time_hours, deaths, mob_kills, player_kills, walked_km, flown_km, jumps, fish_caught, minutes_since_death, minutes_since_rest |
+| `get_advancements` | `{ "filter"?: "todo" \| "done" \| "all" }` default todo | done_count, todo_count, and up to 40 per list: todo and/or done [{key, title, description, started?}]; `key` is what `goals` takes for an advancement |
+| `get_recipes` | `{ "item": "beacon" }` | item, recipes [{type, shape?, key?, ingredients?, input?, seconds?, experience?, template?, base?, addition?, makes?}] up to 5, more_recipes. Crafting, cooking, stonecutting, and smithing only |
+| `locate_structure` | `{ "structure": "village" }` | `{ found, structure, x, z, distance, direction }` within `tools.locate_structure_radius` chunks, or `{ found: false, radius_blocks }` |
+| `locate_biome` | `{ "biome": "cherry_grove" }` | `{ found, biome, x, y, z, distance, direction }` within `tools.locate_biome_radius` blocks, searched like `/locate biome`; a part of a name matches |
+| `get_server` | – | software, version, online, max_players, plugin_version |
+| `get_locations` | – | respawn_point, world_spawn, last_death: each {x, y, z, dimension, distance?, direction?} or null |
+| `get_death_info` | – | place {x, y, z, dimension, distance?, direction?}, minutes_ago, kept_inventory, dropped {id: count}, dropped_experience, area_loaded, items_on_ground and seconds_until_first_despawn when loaded. Drops are known only since the last plugin start |
+| `find_villagers` | `{ "item"?: "enchanted_book", "profession"?: "librarian", "radius"?: 4–64 }` | radius, villagers (up to 10, nearest first) [{profession, level?, x, y, z, distance, direction, trades [trade] (up to 10; with `item`, only those trades)}] |
+| `scan_nearby_containers` | `{ "radius"?: 1–12 }` default 8 | radius, containers (20 nearest) [{type, x, y, z, distance, direction, name?, used_slots, top {id: count}, inside_containers?}], more_containers |
+| `find_item` | `{ "item": "diamond", "radius"?: 1–12 }` | query, matched_ids (when `item` isn't an exact id and matched as part of ids), total, radius, places (up to 30) [{where: inventory \| offhand \| armor \| enderchest, slot, count, inside?} or {where: container, type, x, y, z, distance, direction, name?, count, inside_boxes?}], more_places. Counts shulker boxes and bundles one level deep |
+| `inspect_item` | `{ "from"?: "hand" \| "offhand" \| "head" \| "chest" \| "legs" \| "feet" \| "inventory" \| "enderchest" \| "container", "slot"?: 0–53, "inner_slot"?: 0–63 }` | One item in full: `from`, `slot`, with `inner_slot` also `inside` and `inner_slot`, then everything an item has (below), plus lore (≤ 10 lines), unbreakable, attributes [{attribute, amount, operation, slot}], tooltip {attack_damage, attack_speed}, effects [{type, level, seconds \| instant}], dye_color, repair_cost, book {title?, author?, generation?, pages}, firework {flight?, explosions [{shape, colors, fade_colors?, trail?, twinkle?}]}, map {scale_level, blocks_per_side, center_x, center_z, dimension, locked, player_inside}, contents [item with slot] up to 27 and more_stacks. `slot` is required for inventory (0–35), enderchest (0–26), and container (the one under the crosshair, 6 blocks); `inner_slot` reads that slot inside the shulker box or bundle found there |
+| `get_item_durability` | – | items [{from, slot?, id, damage, max_damage, percent_left, unbreaking?, expected_uses?, mending?, almost_broken?}] for armor, offhand, and every inventory slot (0–8 the hotbar) |
+| `get_xp_info` | `{ "target_level"?: 0–100 }` | level, progress, total_points, points_to_next_level, target_level?, points_to_target? |
+| `get_food_options` | – | food, saturation, food_missing, foods [{id, count, nutrition, saturation, note?}] |
+| `get_anvil_plan` | `{ "enchantments": { "sharpness": 5, "mending": 1 } }` | for the item in hand: item, item_repair_cost, steps [{left, right, levels}] where pieces are `item` or `<enchantment> <level>`, total_levels, too_expensive |
+| `get_light_spawn_check` | `{ "radius"?: 1–16 }` default 8 | radius, dark_spots (solid floor, two free blocks, block light 0, within ±6 height), nearest [{x, y, z, distance, direction}] (10), rule |
+| `get_brewing_items` | – | inventory [item] for brewing, brewing_stands (up to 4 within 8 blocks) [{x, y, z, distance, direction, fuel_level, seconds_left?, ingredient?, fuel?, bottles}] |
+| `scan_farm` | `{ "radius"?: 1–16 }` default 8 | radius, crops {id: {total, ripe, max_age, by_age}}, farmland {hydrated, dry}, composter_levels?, hoppers?, spawners? {mob: count}, animals {type: count}, within ±4 height |
+| `point_to` | `{ "x", "z", "y"?, "dimension"?, "label"?, "seconds"?: 1–30 }` | Points the compass and draws a trail only the player sees (2 s by default). A `dimension` other than the player's is refused. Returns `{ distance, direction, compass }` |
+| `ping_me` | – | Note particles and a sound over the player that everyone nearby sees and hears; `{ pinged, y }` |
+| `sort_inventory` | – | Merges stacks and sorts slots 9–35 by id; `{ merged_stacks }` |
+| `reminders` | `{ "action"?: "add" \| "list" \| "cancel", "minutes"?: 1–120, "text"?: "≤ 100", "id"?, "all"? }` | add: `{ id, minutes, text }`, a chat line with a sound after the delay (10 pending per player by default, `tools.reminders.max_pending`; lost on a restart or when the player leaves). list (default): `{ reminders: [{id, text, minutes_left, due_at}] }`. cancel by `id` or `all`: `{ cancelled }` |
+| `goals` | `{ "action"?: "set" \| "list" \| "cancel", "kind"?, "title"?, "target"?, "statistic"?, "item"?, "entity"?, "advancement"?, "x"?, "z"?, "radius"?, "biome"?, "dimension"?, "color"?, "style"?, "id"?, "all"? }` | set: a boss bar goal counted from now; kinds `stat`, `pickup`, `level`, `advancement`, `reach`, `biome`, `dimension`; statistics in centimeters take `target` in blocks; ends with a sound and a chat line; returns `{ id, kind, title, progress, target }`. list (default): `{ goals: [{id, kind, title, progress, target, done?}] }`. cancel by `id` or `all`: `{ cancelled }` |
+| `add_note` | `{ "text": "≤ 200", "here"?: true, "x"?, "y"?, "z"?, "dimension"? }` | A note kept on disk (200 per player by default, `tools.notes.max_per_player`). By default where the player stands; with `here: false`, the given `x`, `z` (and optional `y`, `dimension`), or no place at all. Returns `{ id, text, x?, y?, z?, dimension? }` |
+| `find_notes` | `{ "query"?, "near"?, "limit"?: 1–50 }` | matched, total, notes [{id, text, x?, y?, z?, dimension?, distance?, direction?, created_at}] |
+| `delete_note` | `{ "id": "k3f9" }` | `{ deleted }` |
 | `add_buttons` | `{ "buttons": [{ "type", "label", "question"?, "x"?, "y"?, "z"?, "dimension"?, "text"?, "item"? }] }` | Puts up to 5 buttons under the answer. `ask` asks `question` on click; `point` shows the way to x, y, z; `note` saves `text` with x, y, z; `recipe` opens the recipe window for `item`; `enchants` the enchanting window for the item in hand; `villagers` the villager window, optionally for `item`. Returns `{ added, total }` |
-| `write_book` | `{ "title": "≤ 32", "text": "≤ 8000" }` | Writes the text into a book and adds `[Открыть книгу]` and `[Взять книгу]` under the answer; returns `{ pages }` |
-| `set_goal` | `{ "kind", "title", "target"?, "statistic"?, "item"?, "entity"?, "advancement"?, "x"?, "z"?, "radius"?, "biome"?, "dimension"?, "color"?, "style"? }` | A boss bar goal counted from now; kinds `stat`, `pickup`, `level`, `advancement`, `reach`, `biome`, `dimension`. Statistics in centimeters take `target` in blocks. Ends with a sound and a chat line. Returns `{ id, kind, title, progress, target }` |
-| `get_goals` | – | the player's goals: [{id, kind, title, progress, target}] |
-| `cancel_goal` | `{ "id": "k3f9" }` or `{ "all": true }` | `{ cancelled }` |
+| `write_book` | `{ "title": "≤ 32", "text": "≤ 8000" }` | Writes the text into a book and adds buttons to open and take it under the answer; returns `{ pages }` |
 | `set_timezone` | `{ "zone": "Asia/Yekaterinburg" }` | Stores the player's IANA zone for later requests; returns `{ zone, local_time }` |
+
+A `trade` is `{ buy: [item], sell: item, left, max_uses }`; `buy` is what this player pays now, with demand and discounts, and a book's `sell` carries `stored_enchantments`.
 
 ### Items
 
@@ -140,7 +135,7 @@ Listed only for operators and only when the admin enables them (`tools.operator`
 |---|---|---|
 | `search_web` | `{ "query": "…" }` | Searches through an OpenRouter online model; the result keeps source URLs |
 | `exact_calculations` | `{ "expressions": ["ceil(1000 / 64)", "(-1024 / 8)", "3 hours to seconds"] }` | Up to 10 expressions, each ≤ 300 chars, evaluated with math.js at 64 significant digits (units and conversions work). Returns `[{ expression, result }]` or `{ expression, error }` per line; each expression gets 1 s |
-| `remember` | `{ "text": "≤ 200 chars" }` | Saves a lasting fact about the player (base location, goals, preferences); at most 30 per player |
+| `remember` | `{ "text": "≤ 200 chars" }` | Saves a lasting fact about the player (goals, what they've done, preferences; places go to the notebook with `add_note`); at most 30 per player |
 | `forget` | `{ "id": "…" }` | Deletes one remembered fact |
 
 All server tools report progress only through `tool_status` (kind `server`).

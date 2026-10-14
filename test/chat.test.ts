@@ -77,11 +77,11 @@ describe("POST /api/v2/chat", () => {
     ]);
     const base = start(testDeps(model));
     const events = await readSse(
-      await chat(base, { message: "which sword is better?", tools: ["inspect_item", "get_container"] }),
+      await chat(base, { message: "which sword is better?", tools: ["inspect_item", "look_at"] }),
       answerTools(base, { inspect_item: sword }),
     );
     expect(events.find((e) => e.event === "tool_call")!.data).toMatchObject({ name: "inspect_item", args: { from: "container", slot: 0 } });
-    expect(JSON.stringify(prompts[0])).toContain("Game tools you can call: inspect_item, get_container");
+    expect(JSON.stringify(prompts[0])).toContain("Game tools you can call: inspect_item, look_at");
     expect(JSON.stringify(prompts[1])).toContain("attack_speed");
     expect(events.at(-1)!.data.answer).toBe("7 damage.");
   });
@@ -114,9 +114,9 @@ describe("POST /api/v2/chat", () => {
   });
 
   test("a tool the plugin never answers times out and the run still finishes", async () => {
-    const { model, prompts } = scripted([[toolCall("get_target", {}), finish("tool-calls")], [...text("I can't see it."), finish()]]);
+    const { model, prompts } = scripted([[toolCall("look_at", {}), finish("tool-calls")], [...text("I can't see it."), finish()]]);
     const base = start(testDeps(model, { toolTimeoutMs: 100 }));
-    const events = await readSse(await chat(base, { message: "what is this?", tools: ["get_target"] }));
+    const events = await readSse(await chat(base, { message: "what is this?", tools: ["look_at"] }));
     expect(events.find((e) => e.event === "tool_status" && e.data.state === "failed")).toBeDefined();
     expect(events.at(-1)!.event).toBe("done");
     expect(JSON.stringify(prompts[1])).toContain("TOOL_TIMEOUT");

@@ -100,7 +100,7 @@ export const runBuddy = async (context: RunContext, deps: BuddyDeps, options: Ru
   const { runId, emit, signal } = options;
   try {
     const model = deps.models({ token: context.token, platform: context.platform });
-    const tools = offeredTools(context.tools, context.player?.op === true);
+    const tools = offeredTools(context.tools, context.player?.op === true, context.mode);
     const memories = await loadMemories(deps, context.userId);
     // askx turns one request into commands; earlier chat would only confuse it, as in v1.
     const session = context.mode === "ask" ? await deps.history.load(context.userId) : { messages: [] };
