@@ -19,7 +19,7 @@ concurrency:
   group: release
 
 env:
-  IMAGE: ghcr.io/mcbuddy-ai/mcbuddy-server
+  IMAGE: ghcr.io/allay-ai/server
 
 jobs:
   release:
@@ -73,6 +73,6 @@ jobs:
           build-args: APP_VERSION=${{ inputs.version }}
           cache-from: type=gha
       - name: Publish the GitHub release
-        run: gh release create "v$VERSION" --target "$GITHUB_SHA" --title "MCBuddy Server $VERSION" --notes-file "$NOTES"
+        run: gh release create "v$VERSION" --target "$GITHUB_SHA" --title "Allay Server $VERSION" --notes-file "$NOTES"
         env:
           GH_TOKEN: ${{ github.token }}

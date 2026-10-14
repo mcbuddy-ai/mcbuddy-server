@@ -25,9 +25,9 @@ The tool bridge keeps pending calls in memory, so the backend runs as one instan
 
 The build bundles `src/features/tools/calc.worker.ts` next to the entrypoint; `exact-calculations.tool.ts` finds it by a computed name so the bundler leaves the path alone. Keep both in `bun run build`.
 
-## Deploying: a push to master is a release
+## Deploying
 
-- Every push to `master` that touches the server builds `ghcr.io/mcbuddy-ai/mcbuddy-server:latest`, and **production pulls `latest` by itself**. Pushing is deploying: test first and get the owner's go-ahead.
+- Every push to `master` that touches the server tests it and builds `ghcr.io/allay-ai/server:sha-<commit>`. There is no `latest`, and nothing deploys by itself: servers pin a released version, as Moonlands does.
 - Releases are made by hand, only when the owner asks. Add a “## X.Y.Z” section to CHANGELOG.md, push, then run `gh workflow run release.yml -R allay-ai/server -f version=X.Y.Z` (its `changelog` field overrides the section; one of the two must be there). It tests, pushes `ghcr.io/allay-ai/server:X.Y.Z`, tags `vX.Y.Z`, and creates the GitHub release. Nothing in the repo holds the version: the image gets it as the `APP_VERSION` build argument, which `/api/health` reports (`dev` when nobody passed one). Never delete or re-tag a published release.
 - Production needs a tool-capable model in `OPENROUTER_API_MODEL` (not `perplexity/sonar*`; that one is `SEARCH_MODEL`).
 

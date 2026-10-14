@@ -1,10 +1,11 @@
 name: Build
 
-# Every push to master publishes the `latest` image, which production pulls by itself.
+# Every push to master tests the server and publishes an image tagged with its commit. There's no `latest`: whoever
+# runs the server pins a released version.
 on:
   push:
     branches: [master]
-    # Docs don't change the image; skipping them spares production a pointless pull.
+    # Docs don't change the image.
     paths-ignore: ["**.md", "docs/**", "media.png", "postman.json"]
   pull_request:
 
@@ -17,7 +18,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IMAGE: ghcr.io/mcbuddy-ai/mcbuddy-server
+  IMAGE: ghcr.io/allay-ai/server
 
 jobs:
   test:
@@ -50,9 +51,7 @@ jobs:
           platforms: linux/amd64
           # Pull requests only check that the image builds.
           push: ${{ github.event_name == 'push' }}
-          tags: |
-            ${{ env.IMAGE }}:latest
-            ${{ env.IMAGE }}:sha-${{ github.sha }}
+          tags: ${{ env.IMAGE }}:sha-${{ github.sha }}
           build-args: APP_VERSION=dev-${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
