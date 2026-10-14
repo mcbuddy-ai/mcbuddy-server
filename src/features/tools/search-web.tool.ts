@@ -1,7 +1,8 @@
 import { createTool } from "@mastra/core/tools";
 import { generateText } from "ai";
 import { z } from "zod";
-import type { ModelFactory } from "../../infrastructure/providers/openrouter/openrouter.client";
+import { type ByokProvider, type ModelFactory, costOf } from "../../infrastructure/providers/openrouter/openrouter.client";
+import { redact } from "../../shared/lib/redact";
 import { logger } from "../../shared/logging/logger";
 import { type Emit, type Summary, summaryFields } from "../chat/chat.events";
 
@@ -10,7 +11,7 @@ const SEARCH_INSTRUCTIONS =
   "Be concise and factual; give version numbers when they matter. Report only what the sources say.";
 
 /** Web search through an OpenRouter online model. The agent decides when it's worth it. */
-export const searchWebTool = (models: ModelFactory, options: { token?: string; platform: string; emit: Emit }) =>
+export const searchWebTool = (models: ModelFactory, options: { provider?: ByokProvider; platform: string; emit: Emit; spend?: (usd: number) => void }) =>
   createTool({
     id: "search_web",
     description:
@@ -26,12 +27,13 @@ export const searchWebTool = (models: ModelFactory, options: { token?: string; p
       status("started");
       try {
         const result = await generateText({
-          model: models({ token: options.token, platform: options.platform, search: true }),
+          model: models({ provider: options.provider, platform: options.platform, search: true }),
           system: SEARCH_INSTRUCTIONS,
           prompt: query,
           abortSignal: context?.abortSignal,
           maxRetries: 1,
         });
+        options.spend?.(costOf(result.providerMetadata));
         const sources = [
           ...new Set(
             result.sources.flatMap((source) => (source.sourceType === "url" ? [source.url] : [])),
@@ -40,7 +42,7 @@ export const searchWebTool = (models: ModelFactory, options: { token?: string; p
         status("finished", { text: sources.length === 1 ? "1 source" : `${sources.length} sources`, key: "sources", values: { count: sources.length } });
         return { summary: result.text.trim(), sources };
       } catch (error) {
-        logger.warn(`Web search failed: ${String(error)}`);
+        logger.warn(`Web search failed: ${redact(String(error), options.provider?.apiKey)}`);
         status("failed", { text: "search failed", key: "search_failed" });
         return { error: "Web search is unavailable right now; answer from knowledge and say you couldn't check." };
       }

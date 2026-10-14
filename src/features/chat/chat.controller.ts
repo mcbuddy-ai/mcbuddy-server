@@ -3,6 +3,7 @@ import { type AllayDeps, runAllay } from "../../agent/allay";
 import { jsonError, readJson } from "../../shared/lib/http";
 import { logger } from "../../shared/logging/logger";
 import { API_ERRORS, apierror } from "../../shared/types/errors";
+import { admit, payer } from "../billing/gate";
 import { parseChatRequest, toolAnswerSchema } from "./chat.types";
 import { sseResponse } from "./chat.sse";
 
@@ -13,24 +14,31 @@ export const handleChat = (deps: AllayDeps) => async (req: Request, server?: Ser
   if (req.method !== "POST") return jsonError(apierror(API_ERRORS.METHOD_NOT_SUPPORTED));
   const json = await readJson(req);
   if (!json.ok) return jsonError(json.error);
-  const parsed = parseChatRequest(json.body, req.headers.get("X-OpenRouter-Token") || undefined);
+  const parsed = parseChatRequest(json.body);
   if (!parsed.ok) return jsonError(parsed.error);
   if (deps.bridge.active >= MAX_ACTIVE_RUNS) {
     return jsonError({ code: "QUEUE_ERROR", message: "Too many questions at once; try again in a minute", statusCode: 503 });
   }
+  const serverKey = parsed.context.server?.id ?? server?.requestIP(req)?.address ?? "unknown";
+  const admitted = await admit(deps.billing, req.headers, parsed.provider, serverKey);
+  if (!admitted.ok) return jsonError(admitted.error.toApiError());
+  const { admission } = admitted;
 
   // Runs outlast Bun's idle timeout while the model thinks; pings keep proxies happy instead.
   server?.timeout(req, 0);
   const runId = crypto.randomUUID();
-  const context = parsed.context;
-  logger.info(`Run ${runId}: ${context.mode} from ${context.player?.name ?? context.userId}, tools: ${context.tools.length}`);
+  const context = { ...parsed.context, provider: admission.provider };
+  logger.info(
+    `Run ${runId}: ${context.mode} from ${context.player?.name ?? context.userId}, tools: ${context.tools.length}, on ${payer(admission)}`,
+  );
 
   return sseResponse(async (emit, signal) => {
     deps.bridge.open(runId, emit);
     try {
-      await runAllay(context, deps, { runId, emit, signal });
+      await runAllay(context, deps, { runId, emit, signal, spend: admission.spend });
     } finally {
       deps.bridge.close(runId);
+      admission.release();
     }
   }, req.signal);
 };

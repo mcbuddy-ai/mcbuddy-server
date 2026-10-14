@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { RunContext } from "../../agent/agent.types";
+import type { ProviderBlock } from "../billing/gate";
 import { API_ERRORS, type ApiError, apierror } from "../../shared/types/errors";
 
 const text = (max: number) => z.string().max(max).optional();
@@ -17,6 +18,8 @@ export const chatRequestSchema = z.object({
   player: z.object({ name: z.string().min(1).max(32), uuid: text(36), op: z.boolean().optional() }).optional(),
   server: z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional(), software: text(64), version: text(64), plugin_version: text(64) }).optional(),
   tools: z.array(z.string().max(64)).max(256).default([]),
+  // Since 4.1: the server's own provider; its key comes in X-Provider-Key.
+  provider: z.object({ base_url: text(512), model: text(200), search_model: text(200) }).optional(),
 });
 
 export const toolAnswerSchema = z.union([
@@ -26,11 +29,10 @@ export const toolAnswerSchema = z.union([
 
 const LIMITS = { ask: 1000, askx: 500 } as const;
 
-/** Validates a v2 body into a run context, or explains what's wrong with it in v1 error codes. */
+/** Validates a v2 body into a run context, or explains what's wrong with it in v1 error codes. Who pays is decided later. */
 export const parseChatRequest = (
   body: unknown,
-  token: string | undefined,
-): { ok: true; context: RunContext } | { ok: false; error: ApiError } => {
+): { ok: true; context: RunContext; provider?: ProviderBlock } | { ok: false; error: ApiError } => {
   const parsed = chatRequestSchema.safeParse(body);
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
@@ -55,7 +57,7 @@ export const parseChatRequest = (
       player: request.player,
       server: request.server,
       tools: [...new Set(request.tools)],
-      token,
     },
+    provider: request.provider,
   };
 };

@@ -2,6 +2,10 @@ export interface ApiError {
   code: string;
   message: string;
   statusCode?: number;
+  /** When a used-up limit refills (QUOTA_EXCEEDED), ISO-8601. */
+  resets_at?: string;
+  /** Seconds to wait (RATE_LIMITED). */
+  retry_after?: number;
 }
 
 export const API_ERRORS = {
@@ -25,6 +29,16 @@ export const API_ERRORS = {
   ALREADY_ANSWERED: { code: 'ALREADY_ANSWERED', message: 'This tool call already has a result', statusCode: 409 },
   CANCELLED: { code: 'CANCELLED', message: 'The request was cancelled', statusCode: 499 },
   MEMORY_NOT_FOUND: { code: 'MEMORY_NOT_FOUND', message: 'No such memory', statusCode: 404 },
+  PROVIDER_AUTH_FAILED: { code: 'PROVIDER_AUTH_FAILED', message: 'The provider refused the API key', statusCode: 401 },
+  MODEL_NOT_FOUND: { code: 'MODEL_NOT_FOUND', message: "The provider doesn't know this model", statusCode: 400 },
+  MODEL_NO_TOOLS: { code: 'MODEL_NO_TOOLS', message: "The model can't call tools, and Allay needs them", statusCode: 400 },
+  PROVIDER_URL_REJECTED: { code: 'PROVIDER_URL_REJECTED', message: 'The provider URL must be https and public', statusCode: 400 },
+  RATE_LIMITED: { code: 'RATE_LIMITED', message: 'Too many questions from this server', statusCode: 429 },
+  LICENSE_REQUIRED: { code: 'LICENSE_REQUIRED', message: 'This backend needs a subscription or your own API key', statusCode: 402 },
+  LICENSE_INVALID: { code: 'LICENSE_INVALID', message: 'Unknown license', statusCode: 401 },
+  SUBSCRIPTION_INACTIVE: { code: 'SUBSCRIPTION_INACTIVE', message: "This server's Allay subscription isn't active", statusCode: 402 },
+  QUOTA_EXCEEDED: { code: 'QUOTA_EXCEEDED', message: "This server's Allay limit is used up", statusCode: 402 },
+  BILLING_UNAVAILABLE: { code: 'BILLING_UNAVAILABLE', message: 'Payments are not set up on this backend', statusCode: 503 },
 } as const;
 
 export const apierror = (baseError: typeof API_ERRORS[keyof typeof API_ERRORS], details?: string): ApiError => ({
@@ -36,15 +50,17 @@ export const apierror = (baseError: typeof API_ERRORS[keyof typeof API_ERRORS], 
 export class ApiFailure extends Error {
   readonly code: string;
   readonly statusCode: number;
+  readonly extra: Pick<ApiError, "resets_at" | "retry_after">;
 
   constructor(error: ApiError) {
     super(error.message);
     this.code = error.code;
     this.statusCode = error.statusCode ?? 500;
+    this.extra = { ...(error.resets_at ? { resets_at: error.resets_at } : {}), ...(error.retry_after ? { retry_after: error.retry_after } : {}) };
   }
 
   toApiError(): ApiError {
-    return { code: this.code, message: this.message, statusCode: this.statusCode };
+    return { code: this.code, message: this.message, statusCode: this.statusCode, ...this.extra };
   }
 }
 

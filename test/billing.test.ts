@@ -1,0 +1,456 @@
+import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { serve, type Server } from "bun";
+import { APICallError } from "ai";
+import { routes } from "../src/application/routes";
+import { handleAsk } from "../src/features/ask/ask.controller";
+import { handleAskX } from "../src/features/askx/askx.controller";
+import type { Billing } from "../src/features/billing/billing";
+import { isPrivateAddress, resetChecks } from "../src/features/billing/byok";
+import { handleLicense } from "../src/features/billing/license.controller";
+import { Limiter } from "../src/features/billing/limits";
+import { allocate, planOf, quotaOf, windowsFor } from "../src/features/billing/plans";
+import { handleChat, handleToolResult } from "../src/features/chat/chat.controller";
+import { handleHealth } from "../src/features/health/health.controller";
+import { handleUpdate } from "../src/features/telegram/telegram.bot";
+import type { TelegramApi } from "../src/features/telegram/telegram.client";
+import { handleTelegram } from "../src/features/telegram/telegram.controller";
+import { handleMemories, handleMemory, handleSession } from "../src/features/users/users.controller";
+import type { GrantRecord } from "../src/infrastructure/billing/licenses";
+import { fakeNet, finish, readSse, scripted, testBilling, testDeps, text, toolCall } from "./helpers";
+
+const handlers = {
+  handleAsk, handleAskX, handleChat, handleToolResult, handleHealth, handleSession, handleMemories, handleMemory, handleLicense, handleTelegram,
+};
+let server: Server | undefined;
+
+/** Response bodies as the tests read them. */
+const body = async (response: Response | Promise<Response>): Promise<any> => (await response).json();
+
+beforeEach(() => resetChecks());
+afterEach(() => server?.stop(true));
+
+const start = (deps: ReturnType<typeof testDeps>) => {
+  server = serve({ port: 0, routes: routes(deps, handlers) });
+  return `http://localhost:${server.port}`;
+};
+
+const chat = (base: string, body: object, headers: Record<string, string> = {}) =>
+  fetch(`${base}/api/v2/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "text/event-stream", ...headers },
+    body: JSON.stringify({ user_id: "player-1", player: { name: "Steve" }, message: "hi", server: { id: "srv-1" }, ...body }),
+  });
+
+const DAY = 86_400_000;
+const T0 = new Date("2026-10-14T10:00:00Z");
+
+/** A fake Bot API: records every call and answers what the bot needs. */
+const fakeTelegram = () => {
+  const calls: Array<{ method: string; params: any }> = [];
+  const api: TelegramApi = {
+    async call<T>(method: string, params: Record<string, unknown> = {}) {
+      calls.push({ method, params });
+      if (method === "createInvoiceLink") return `https://t.me/$invoice-${calls.length}` as T;
+      return true as T;
+    },
+  };
+  return { api, calls, last: (method: string) => calls.filter((c) => c.method === method).at(-1)?.params };
+};
+
+const user = (id = 7, language_code = "en") => ({ id, language_code });
+const dm = (id = 7) => ({ id, type: "private" });
+const message = (text: string, from = user()) => ({ update_id: 1, message: { message_id: 1, from, chat: dm(from.id), text } });
+
+const payment = (plan: string, license: string, charge: string, extra: object = {}) => ({
+  update_id: 2,
+  message: {
+    message_id: 2,
+    from: user(),
+    chat: dm(),
+    successful_payment: {
+      currency: "XTR",
+      total_amount: planOf(plan)!.stars,
+      invoice_payload: `${plan}:${license}`,
+      telegram_payment_charge_id: charge,
+      ...extra,
+    },
+  },
+});
+
+/** A billing backend with a clock the test moves, a license made through the API, and a fake bot. */
+const hosted = async (model = scripted([[...text("Hello."), finish()]]).model) => {
+  let now = T0;
+  const billing: Billing = testBilling({ enabled: true, now: () => now });
+  const telegram = fakeTelegram();
+  billing.bot.api = telegram.api;
+  billing.bot.secret = "s3cret";
+  const deps = testDeps(model, { billing });
+  const base = start(deps);
+  const created = await body(fetch(`${base}/api/v2/license`, { method: "POST", body: JSON.stringify({ name: "§aMoon§rlands  SMP" }) }));
+  const code = new URL(created.pay_url).searchParams.get("start")!;
+  return {
+    billing, telegram, deps, base, created, code,
+    auth: { Authorization: `Bearer ${created.license}` },
+    tick: (ms: number) => (now = new Date(now.getTime() + ms)),
+    pay: async (plan: string, charge: string, extra: object = {}) => {
+      await handleUpdate(billing, telegram.api, payment(plan, created.license_id, charge, extra) as any);
+    },
+  };
+};
+
+describe("plans and quotas", () => {
+  const grants = (windows: ReturnType<typeof windowsFor>): GrantRecord[] =>
+    windows.map((w, i) => ({ ...w, id: `g${i}`, license: "l", spent: 0 }));
+
+  test("a payment during a period adds its money at once and moves the end", () => {
+    const month = windowsFor(planOf("month")!, T0, null);
+    expect(month).toEqual([{ budget: 3, starts: T0, ends: new Date(T0.getTime() + 30 * DAY) }]);
+    const later = new Date(T0.getTime() + 10 * DAY);
+    const week = windowsFor(planOf("week")!, later, month[0].ends);
+    expect(week[0]).toEqual({ budget: 0.75, starts: later, ends: new Date(T0.getTime() + 37 * DAY) });
+    const quota = quotaOf(grants([...month, ...week]), later);
+    expect(quota.remaining).toBe(3.75);
+    expect(quota.paidUntil).toEqual(new Date(T0.getTime() + 37 * DAY));
+  });
+
+  test("a year refills monthly: twelve windows, one open at a time", () => {
+    const year = grants(windowsFor(planOf("year")!, T0, null));
+    expect(year).toHaveLength(12);
+    expect(year.at(-1)!.ends).toEqual(new Date(T0.getTime() + 365 * DAY));
+    const spent = year.map((g, i) => (i === 0 ? { ...g, spent: 6.2 } : g));
+    const quota = quotaOf(spent, new Date(T0.getTime() + DAY));
+    expect(quota).toMatchObject({ active: true, remaining: 0, usedPercent: 100 });
+    // Used up: it refills when the next window opens.
+    expect(quota.resetsAt).toEqual(year[1].starts);
+  });
+
+  test("costs go to the window that ends first, and an overshoot still lands", () => {
+    const g: GrantRecord[] = [
+      { id: "late", license: "l", budget: 3, spent: 0, starts: T0, ends: new Date(T0.getTime() + 30 * DAY) },
+      { id: "soon", license: "l", budget: 0.75, spent: 0.7, starts: T0, ends: new Date(T0.getTime() + 7 * DAY) },
+    ];
+    expect(allocate(g, 0.1, T0)).toEqual([{ grant: "soon", usd: expect.closeTo(0.05, 6) }, { grant: "late", usd: expect.closeTo(0.05, 6) }]);
+    const spent = g.map((x) => ({ ...x, spent: x.budget }));
+    expect(allocate(spent, 0.01, T0)).toEqual([{ grant: "soon", usd: 0.01 }]);
+  });
+
+  test("the limiter counts per window, frees slots, and says when to come back", () => {
+    const limiter = new Limiter([{ ms: 60_000, max: 2 }], 1);
+    const first = limiter.take("a", 0);
+    expect(first.ok).toBe(true);
+    expect(limiter.take("a", 1)).toEqual({ ok: false, retryAfter: 5 });
+    if (first.ok) first.release();
+    expect(limiter.take("a", 2).ok).toBe(true);
+    expect(limiter.take("a", 3)).toEqual({ ok: false, retryAfter: 60 });
+    expect(limiter.take("b", 3).ok).toBe(true);
+  });
+
+  test("private addresses are refused, public ones pass", () => {
+    for (const ip of ["127.0.0.1", "10.1.2.3", "172.20.0.1", "192.168.1.1", "169.254.169.254", "100.64.0.1", "::1", "fd00::1", "fe80::1", "::ffff:10.0.0.1"]) {
+      expect(isPrivateAddress(ip)).toBe(true);
+    }
+    for (const ip of ["93.184.216.34", "1.1.1.1", "2606:4700::1111"]) expect(isPrivateAddress(ip)).toBe(false);
+  });
+});
+
+describe("licenses", () => {
+  test("a self-hosted backend needs no license and says so", async () => {
+    const deps = testDeps(scripted([[...text("Hi."), finish()]]).model);
+    const base = start(deps);
+    expect(await body(fetch(`${base}/api/v2/license`, { method: "POST" }))).toEqual({ billing: false });
+    expect((await body(fetch(`${base}/api/health`))).billing).toBe(false);
+    const events = await readSse(await chat(base, {}));
+    expect(events.at(-1)!.event).toBe("done");
+  });
+
+  test("a new license has a secret, a one-time claim code, and a payment link; its status shows nothing paid", async () => {
+    const h = await hosted();
+    expect(h.created.license).toMatch(/^[A-Za-z0-9]+\.[A-Za-z0-9_-]{40,}$/);
+    expect(h.created.pay_url).toStartWith("https://t.me/allay_test_bot?start=");
+    expect((await h.billing.licenses.get(h.created.license_id))!.name).toBe("Moonlands SMP");
+    // Only a digest of the secret is kept.
+    expect(JSON.stringify(await h.billing.licenses.get(h.created.license_id))).not.toContain(h.created.license.split(".")[1]);
+    const status = await body(fetch(`${h.base}/api/v2/license`, { headers: h.auth }));
+    expect(status).toMatchObject({ billing: true, linked: false, active: false, plan: null, paid_until: null, renews: false, quota: { used_percent: 0, resets_at: null } });
+
+    const again = await body(fetch(`${h.base}/api/v2/license`, { method: "POST", headers: h.auth }));
+    expect(again.license).toBeUndefined();
+    expect(again.claim_code).not.toBe(h.code);
+    const wrong = await fetch(`${h.base}/api/v2/license`, { headers: { Authorization: `Bearer ${h.created.license_id}.nope` } });
+    expect(wrong.status).toBe(401);
+    expect((await body(wrong)).error.code).toBe("LICENSE_INVALID");
+  });
+
+  test("without a bot there are no payment links", async () => {
+    const billing = testBilling({ enabled: true });
+    billing.bot.username = undefined;
+    const base = start(testDeps(scripted([]).model, { billing }));
+    const response = await fetch(`${base}/api/v2/license`, { method: "POST" });
+    expect(response.status).toBe(503);
+    expect((await body(response)).error.code).toBe("BILLING_UNAVAILABLE");
+  });
+});
+
+describe("the subscription gate", () => {
+  test("no license, an unpaid one, then a paid one: each gets its answer", async () => {
+    const h = await hosted();
+    const none = await chat(h.base, {});
+    expect(none.status).toBe(402);
+    expect((await body(none)).error.code).toBe("LICENSE_REQUIRED");
+    const unpaid = await chat(h.base, {}, h.auth);
+    expect((await body(unpaid)).error.code).toBe("SUBSCRIPTION_INACTIVE");
+
+    await h.pay("week", "charge-1");
+    const events = await readSse(await chat(h.base, {}, h.auth));
+    expect(events.at(-1)!.event).toBe("done");
+    const status = await body(fetch(`${h.base}/api/v2/license`, { headers: h.auth }));
+    expect(status).toMatchObject({ active: true, plan: "week", paid_until: new Date(T0.getTime() + 7 * DAY).toISOString() });
+    expect(status.last_payment_at).toBe(T0.toISOString());
+  });
+
+  test("hosted runs ignore the plugin's model and charge what the run cost, search included", async () => {
+    const { model } = scripted([
+      [toolCall("search_web", { query: "26.3" }), finish("tool-calls")],
+      [...text("Copper golems."), finish()],
+    ]);
+    const h = await hosted(model);
+    await h.pay("week", "charge-1");
+    await readSse(await chat(h.base, { provider: { model: "gpt-ultra", base_url: "https://example.com" } }, h.auth));
+    expect(h.deps.lastProvider).toBeUndefined();
+    await Bun.sleep(20);
+    const [grant] = await h.billing.licenses.grants(h.created.license_id);
+    // Two model steps at $0.0005 and a search at $0.002.
+    expect(grant.spent).toBeCloseTo(0.003, 6);
+  });
+
+  test("a used-up week waits for a payment; a used-up year month says when it refills", async () => {
+    const h = await hosted();
+    await h.pay("week", "charge-1");
+    const [week] = await h.billing.licenses.grants(h.created.license_id);
+    await h.billing.licenses.charge(week.id, 0.75);
+    const spent = await chat(h.base, {}, h.auth);
+    expect(spent.status).toBe(402);
+    const refusal = await body(spent);
+    expect(refusal.error.code).toBe("QUOTA_EXCEEDED");
+    expect(refusal.error.resets_at).toBeUndefined();
+
+    await h.pay("year", "charge-2");
+    const year = (await h.billing.licenses.grants(h.created.license_id)).filter((g) => g.payment === "charge-2");
+    await h.billing.licenses.charge(year[0].id, 6);
+    const waiting = await body(chat(h.base, {}, h.auth));
+    expect(waiting.error.code).toBe("QUOTA_EXCEEDED");
+    expect(waiting.error.resets_at).toBe(year[1].starts.toISOString());
+    h.tick(31 * DAY);
+    expect((await readSse(await chat(h.base, {}, h.auth))).at(-1)!.event).toBe("done");
+  });
+
+  test("the period ends", async () => {
+    const h = await hosted();
+    await h.pay("week", "charge-1");
+    h.tick(8 * DAY);
+    expect((await body(chat(h.base, {}, h.auth))).error.code).toBe("SUBSCRIPTION_INACTIVE");
+  });
+
+  test("v1 endpoints need a license or a key too", async () => {
+    const h = await hosted();
+    const response = await fetch(`${h.base}/api/ask`, { method: "POST", body: JSON.stringify({ question: "hi" }) });
+    expect(response.status).toBe(402);
+    expect((await body(response)).code).toBe("LICENSE_REQUIRED");
+  });
+});
+
+describe("bring your own key", () => {
+  const catalog = {
+    "https://openrouter.ai/api/v1/models": () =>
+      Response.json({
+        data: [
+          { id: "openai/gpt-6-luna", supported_parameters: ["tools", "reasoning"] },
+          { id: "perplexity/sonar", supported_parameters: ["web_search_options"] },
+          { id: "some/no-tools", supported_parameters: ["temperature"] },
+        ],
+      }),
+  };
+
+  test("the run uses the server's key, base URL, and model, and offers no search without a search model", async () => {
+    const { model, offered } = scripted([[...text("Hi."), finish()]]);
+    const deps = testDeps(model, { billing: testBilling({ enabled: true, net: fakeNet(catalog) }) });
+    const base = start(deps);
+    const events = await readSse(
+      await chat(base, { provider: { base_url: "https://api.example.com/v1", model: "llama-4" }, tools: ["get_world"] }, { "X-Provider-Key": "sk-own-key-123456" }),
+    );
+    expect(events.at(-1)!.event).toBe("done");
+    expect(deps.lastProvider).toEqual({ baseURL: "https://api.example.com/v1", apiKey: "sk-own-key-123456", model: "llama-4", searchModel: undefined });
+    expect(offered[0]).not.toContain("search_web");
+    expect(offered[0]).toContain("get_world");
+  });
+
+  test("the v1 header still works, as OpenRouter with the backend's models and search", async () => {
+    const { model, offered } = scripted([[...text("Hi."), finish()]]);
+    const deps = testDeps(model, { billing: testBilling({ enabled: true, net: fakeNet(catalog) }) });
+    const base = start(deps);
+    await readSse(await chat(base, {}, { "X-OpenRouter-Token": "sk-or-old-header-1" }));
+    expect(deps.lastProvider).toMatchObject({ baseURL: "https://openrouter.ai/api/v1", apiKey: "sk-or-old-header-1", model: "openai/gpt-6-luna" });
+    expect(offered[0]).toContain("search_web");
+  });
+
+  const refusedWith = async (block: object, net = fakeNet(catalog), key = "sk-or-v1-abcdef123456") => {
+    const deps = testDeps(scripted([[...text("Hi."), finish()]]).model, { billing: testBilling({ enabled: true, net }) });
+    const response = await chat(start(deps), { provider: block }, { "X-Provider-Key": key });
+    return { status: response.status, error: (await body(response)).error };
+  };
+
+  test("a backend with billing on refuses http and private addresses", async () => {
+    expect((await refusedWith({ base_url: "http://api.example.com/v1", model: "m" })).error.code).toBe("PROVIDER_URL_REJECTED");
+    expect((await refusedWith({ base_url: "https://redis.internal/v1", model: "m" })).error.code).toBe("PROVIDER_URL_REJECTED");
+    expect((await refusedWith({ base_url: "https://169.254.169.254/v1", model: "m" })).error.code).toBe("PROVIDER_URL_REJECTED");
+  });
+
+  test("OpenRouter: a refused key, an unknown model, and a model without tools each get their code", async () => {
+    const net = fakeNet({ ...catalog, "https://openrouter.ai/api/v1/key": () => new Response("{}", { status: 401 }) });
+    expect(await refusedWith({ model: "openai/gpt-6-luna" }, net)).toMatchObject({ status: 401, error: { code: "PROVIDER_AUTH_FAILED" } });
+    resetChecks();
+    expect((await refusedWith({ model: "nobody/nothing" })).error.code).toBe("MODEL_NOT_FOUND");
+    expect((await refusedWith({ model: "some/no-tools" })).error.code).toBe("MODEL_NO_TOOLS");
+    expect((await refusedWith({ model: "openai/gpt-6-luna", search_model: "perplexity/nope" })).error.code).toBe("MODEL_NOT_FOUND");
+  });
+
+  test("another API: its /models answers for the key and the model", async () => {
+    const net = fakeNet({ "https://api.example.com/v1/models": () => Response.json({ data: [{ id: "llama-4" }] }) });
+    expect((await refusedWith({ base_url: "https://api.example.com/v1", model: "gpt-9" }, net)).error.code).toBe("MODEL_NOT_FOUND");
+    expect((await refusedWith({ base_url: "https://api.example.com/v1" }, net)).error.code).toBe("MODEL_NOT_FOUND");
+  });
+
+  test("a provider's error mid-run gets a clear code and never shows the key", async () => {
+    const key = "sk-secret-key-0123456789";
+    const failing = scripted([]).model;
+    failing.doStream = async () => {
+      throw new APICallError({
+        message: `Incorrect API key provided: ${key}`,
+        url: "https://api.example.com/v1/chat/completions",
+        requestBodyValues: {},
+        statusCode: 401,
+        isRetryable: false,
+      });
+    };
+    const deps = testDeps(failing, { billing: testBilling({ enabled: true }) });
+    const base = start(deps);
+    const events = await readSse(await chat(base, { provider: { base_url: "https://api.example.com/v1", model: "m" } }, { "X-Provider-Key": key }));
+    const error = events.find((e) => e.event === "error")!;
+    expect(error.data.code).toBe("PROVIDER_AUTH_FAILED");
+    expect(JSON.stringify(events)).not.toContain(key);
+  });
+
+  test("a server gets 20 questions a minute", async () => {
+    const deps = testDeps(scripted([[...text("Hi."), finish()]]).model, { billing: testBilling({ enabled: true, net: fakeNet(catalog) }) });
+    const base = start(deps);
+    const headers = { "X-Provider-Key": "sk-or-v1-abcdef123456" };
+    for (let i = 0; i < 20; i++) await readSse(await chat(base, {}, headers));
+    const response = await chat(base, {}, headers);
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBeTruthy();
+    expect((await body(response)).error).toMatchObject({ code: "RATE_LIMITED", retry_after: expect.any(Number) });
+    // Another server has its own count.
+    expect((await chat(base, { server: { id: "srv-2" } }, headers)).status).toBe(200);
+  });
+
+  test("a self-hosted backend takes any URL and has no limits", async () => {
+    const deps = testDeps(scripted([[...text("Hi."), finish()]]).model, { billing: testBilling({ enabled: false }) });
+    const base = start(deps);
+    const events = await readSse(await chat(base, { provider: { base_url: "http://localhost:11434/v1", model: "qwen3" } }, { "X-Provider-Key": "ollama-local-key" }));
+    expect(events.at(-1)!.event).toBe("done");
+    expect(deps.lastProvider).toMatchObject({ baseURL: "http://localhost:11434/v1" });
+  });
+});
+
+describe("the Telegram bot", () => {
+  test("a claim code ties the server to the account once and offers the plans", async () => {
+    const h = await hosted();
+    await handleUpdate(h.billing, h.telegram.api, message(`/start ${h.code}`) as any);
+    const license = (await h.billing.licenses.get(h.created.license_id))!;
+    expect(license).toMatchObject({ telegram_user_id: 7, telegram_chat_id: 7, language: "en" });
+    const sent = h.telegram.calls.filter((c) => c.method === "sendMessage");
+    expect(sent[0].params.text).toContain("Moonlands SMP");
+    expect(sent[1].params.reply_markup.inline_keyboard.map((row: any) => row[0].callback_data)).toEqual([
+      `buy:week:${license.id}`, `buy:month:${license.id}`, `buy:year:${license.id}`,
+    ]);
+    // The code works once.
+    await handleUpdate(h.billing, h.telegram.api, message(`/start ${h.code}`, user(8, "ru")) as any);
+    expect(h.telegram.last("sendMessage").text).toContain("устарела");
+    expect((await body(fetch(`${h.base}/api/v2/license`, { headers: h.auth }))).linked).toBe(true);
+  });
+
+  test("buying: a Stars invoice, a subscription for the month, a pre-checkout check, and the credit", async () => {
+    const h = await hosted();
+    await handleUpdate(h.billing, h.telegram.api, message(`/start ${h.code}`) as any);
+    const callback = (data: string, from = user()) =>
+      handleUpdate(h.billing, h.telegram.api, { update_id: 3, callback_query: { id: "cb", from, message: { chat: { id: from.id } }, data } } as any);
+
+    await callback(`buy:month:${h.created.license_id}`);
+    const invoice = h.telegram.last("createInvoiceLink");
+    expect(invoice).toMatchObject({ currency: "XTR", prices: [{ amount: 500 }], payload: `month:${h.created.license_id}`, subscription_period: 2592000 });
+    expect(h.telegram.last("sendMessage").reply_markup.inline_keyboard[0][0].url).toStartWith("https://t.me/$invoice");
+    await callback(`buy:week:${h.created.license_id}`);
+    expect(h.telegram.last("createInvoiceLink").subscription_period).toBeUndefined();
+
+    // Someone else's button does nothing.
+    await callback(`buy:week:${h.created.license_id}`, user(9));
+    expect(h.telegram.last("answerCallbackQuery")).toMatchObject({ show_alert: true });
+
+    const preCheckout = (amount: number) =>
+      handleUpdate(h.billing, h.telegram.api, {
+        update_id: 4,
+        pre_checkout_query: { id: "pc", from: user(), currency: "XTR", total_amount: amount, invoice_payload: `month:${h.created.license_id}` },
+      } as any);
+    await preCheckout(500);
+    expect(h.telegram.last("answerPreCheckoutQuery")).toMatchObject({ ok: true });
+    await preCheckout(1);
+    expect(h.telegram.last("answerPreCheckoutQuery")).toMatchObject({ ok: false });
+
+    await h.pay("month", "charge-1", { is_recurring: true, is_first_recurring: true });
+    await h.pay("month", "charge-1", { is_recurring: true, is_first_recurring: true });
+    expect(await h.billing.licenses.grants(h.created.license_id)).toHaveLength(1);
+    expect(h.telegram.last("sendMessage").text).toContain("Thank you");
+    const status = await body(fetch(`${h.base}/api/v2/license`, { headers: h.auth }));
+    expect(status).toMatchObject({ active: true, plan: "month", renews: true, quota: { used_percent: 0 } });
+
+    // A renewal adds a month.
+    h.tick(29 * DAY);
+    await h.pay("month", "charge-2", { is_recurring: true });
+    expect(h.telegram.last("sendMessage").text).toContain("renewed");
+    const renewed = await body(fetch(`${h.base}/api/v2/license`, { headers: h.auth }));
+    expect(renewed.paid_until).toBe(new Date(T0.getTime() + 60 * DAY).toISOString());
+
+    // Stopping renewal goes to Telegram with the first charge of the subscription.
+    await callback(`stop:${h.created.license_id}`);
+    expect(h.telegram.last("editUserStarSubscription")).toEqual({ user_id: 7, telegram_payment_charge_id: "charge-1", is_canceled: true });
+    expect((await body(fetch(`${h.base}/api/v2/license`, { headers: h.auth }))).renews).toBe(false);
+  });
+
+  test("/status lists the servers; /refund works for admins only and closes what was paid", async () => {
+    const h = await hosted();
+    await handleUpdate(h.billing, h.telegram.api, message(`/start ${h.code}`) as any);
+    await h.pay("week", "charge-1");
+    await handleUpdate(h.billing, h.telegram.api, message("/status") as any);
+    expect(h.telegram.last("sendMessage").text).toContain("Moonlands SMP: active until");
+
+    await handleUpdate(h.billing, h.telegram.api, message("/refund charge-1") as any);
+    expect(h.telegram.last("refundStarPayment")).toBeUndefined();
+    await handleUpdate(h.billing, h.telegram.api, message("/refund charge-1", user(42)) as any);
+    expect(h.telegram.last("refundStarPayment")).toEqual({ user_id: 7, telegram_payment_charge_id: "charge-1" });
+    expect(await h.billing.licenses.grants(h.created.license_id)).toHaveLength(0);
+    expect((await body(chat(h.base, {}, h.auth))).error.code).toBe("SUBSCRIPTION_INACTIVE");
+  });
+
+  test("the webhook wants Telegram's secret token", async () => {
+    const h = await hosted();
+    const post = (secret: string) =>
+      fetch(`${h.base}/api/telegram/webhook`, {
+        method: "POST",
+        headers: { "X-Telegram-Bot-Api-Secret-Token": secret },
+        body: JSON.stringify(message("/help")),
+      });
+    expect((await post("wrong")).status).toBe(401);
+    expect((await post("s3cret")).status).toBe(200);
+    expect(h.telegram.last("sendMessage").text).toContain("/status");
+  });
+});

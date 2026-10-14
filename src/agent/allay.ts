@@ -1,5 +1,6 @@
 import { Agent } from "@mastra/core/agent";
 import { APICallError, type ModelMessage } from "ai";
+import type { Billing } from "../features/billing/billing";
 import type { ToolBridge } from "../features/chat/chat.bridge";
 import type { Emit } from "../features/chat/chat.events";
 import { exactCalculationsTool } from "../features/tools/exact-calculations.tool";
@@ -8,7 +9,8 @@ import { memoryTools } from "../features/tools/memory.tools";
 import { searchWebTool } from "../features/tools/search-web.tool";
 import { type HistoryStore, threadOf } from "../infrastructure/history/history";
 import type { Memory, MemoryStore } from "../infrastructure/memory/memory";
-import type { ModelFactory } from "../infrastructure/providers/openrouter/openrouter.client";
+import { type ByokProvider, type ModelFactory, costOf } from "../infrastructure/providers/openrouter/openrouter.client";
+import { redact } from "../shared/lib/redact";
 import { logger } from "../shared/logging/logger";
 import { API_ERRORS, ApiFailure, apierror } from "../shared/types/errors";
 import type { CommandsResult, RunContext, RunResult, Usage } from "./agent.types";
@@ -22,12 +24,15 @@ export interface AllayDeps {
   history: HistoryStore;
   memories: MemoryStore;
   bridge: ToolBridge;
+  billing: Billing;
 }
 
 export interface RunOptions {
   runId: string;
   emit: Emit;
   signal?: AbortSignal;
+  /** Called with every cost the run incurs, as it happens: model steps, web searches, the session summary after it. */
+  spend?: (usd: number) => void;
 }
 
 const MAX_STEPS = Number(process.env.MAX_AGENT_STEPS || 8);
@@ -53,19 +58,28 @@ interface AgentStream {
   object: Promise<unknown>;
 }
 
-const costOf = (metadata: unknown): number => {
-  const cost = (metadata as { openrouter?: { usage?: { cost?: unknown } } } | undefined)?.openrouter?.usage?.cost;
-  return typeof cost === "number" ? cost : 0;
+/** A provider's refusal of the server's own key or model, in codes the plugin explains to operators. */
+const byokFailure = (error: APICallError, text: string): ApiFailure | undefined => {
+  const status = error.statusCode ?? 0;
+  if (status === 401 || status === 403) return new ApiFailure(apierror(API_ERRORS.PROVIDER_AUTH_FAILED, text));
+  if (/tool|function/i.test(text) && /support|not allowed|unavailable|invalid/i.test(text)) {
+    return new ApiFailure(apierror(API_ERRORS.MODEL_NO_TOOLS, text));
+  }
+  if (status === 404 || /model.*(not found|not exist|invalid)|no (such|endpoints?).*model/i.test(text)) {
+    return new ApiFailure(apierror(API_ERRORS.MODEL_NOT_FOUND, text));
+  }
+  return undefined;
 };
 
 /** Turns whatever went wrong into an error code the plugin and the bot already understand. */
-export const classify = (error: unknown, signal?: AbortSignal): ApiFailure => {
+export const classify = (error: unknown, signal?: AbortSignal, provider?: ByokProvider): ApiFailure => {
   if (error instanceof ApiFailure) return error;
   if (signal?.aborted) return new ApiFailure(apierror(API_ERRORS.CANCELLED));
   if (APICallError.isInstance(error)) {
-    return new ApiFailure(apierror(API_ERRORS.AI_REQUEST_FAILED, `${error.statusCode ?? ""} ${error.message}`.trim()));
+    const text = redact(`${error.statusCode ?? ""} ${error.message}`.trim(), provider?.apiKey);
+    return (provider && byokFailure(error, text)) || new ApiFailure(apierror(API_ERRORS.AI_REQUEST_FAILED, text));
   }
-  const text = error instanceof Error ? error.message : String(error);
+  const text = redact(error instanceof Error ? error.message : String(error), provider?.apiKey);
   if (/fetch|network|ECONN|ETIMEDOUT|socket/i.test(text)) return new ApiFailure(apierror(API_ERRORS.NETWORK_ERROR, text));
   return new ApiFailure(apierror(API_ERRORS.AI_REQUEST_FAILED, text));
 };
@@ -88,12 +102,12 @@ const record = (context: RunContext, deps: AllayDeps, answer: string, asked: str
     { role: "assistant", content: answer },
   );
 
-const compact = async (context: RunContext, deps: AllayDeps) => {
+const compact = async (context: RunContext, deps: AllayDeps, spend?: (usd: number) => void) => {
   try {
-    const model = deps.models({ token: context.token, platform: context.platform });
-    if (await deps.history.compact(thread(context), summarizeWith(model))) logger.info(`Folded the session of ${thread(context)}`);
+    const model = deps.models({ provider: context.provider, platform: context.platform });
+    if (await deps.history.compact(thread(context), summarizeWith(model, spend))) logger.info(`Folded the session of ${thread(context)}`);
   } catch (error) {
-    logger.warn(`Couldn't fold the session of ${thread(context)}: ${String(error)}`);
+    logger.warn(`Couldn't fold the session of ${thread(context)}: ${redact(String(error), context.provider?.apiKey)}`);
   }
 };
 
@@ -104,8 +118,14 @@ const compact = async (context: RunContext, deps: AllayDeps) => {
 export const runAllay = async (context: RunContext, deps: AllayDeps, options: RunOptions): Promise<RunResult> => {
   const started = Date.now();
   const { runId, emit, signal } = options;
+  let cost = 0;
+  const spend = (usd: number) => {
+    if (usd <= 0) return;
+    cost += usd;
+    options.spend?.(usd);
+  };
   try {
-    const model = deps.models({ token: context.token, platform: context.platform });
+    const model = deps.models({ provider: context.provider, platform: context.platform });
     const tools = offeredTools(context.tools, context.player?.op === true, context.mode, context.visibility);
     const memories = await loadMemories(deps, context.userId);
     // askx turns one request into commands; earlier chat would only confuse it, as in v1.
@@ -124,7 +144,10 @@ export const runAllay = async (context: RunContext, deps: AllayDeps, options: Ru
       modelSettings: { maxRetries: 2 },
       toolsets: {
         game: gameTools(tools, runId, deps.bridge, (name) => pluginName(name, context.tools)),
-        web: { search_web: searchWebTool(deps.models, { token: context.token, platform: context.platform, emit }) },
+        // A server that brought its own key without a search model gets no web search.
+        ...(context.provider && !context.provider.searchModel
+          ? {}
+          : { web: { search_web: searchWebTool(deps.models, { provider: context.provider, platform: context.platform, emit, spend }) } }),
         math: { exact_calculations: exactCalculationsTool({ emit }) },
         ...(context.mode === "ask" && remembers(context.userId)
           ? { memory: memoryTools(deps.memories, { userId: context.userId, emit }) }
@@ -138,7 +161,6 @@ export const runAllay = async (context: RunContext, deps: AllayDeps, options: Ru
     ) as unknown as AgentStream;
 
     let text = "";
-    let cost = 0;
     // Per-step usage, summed, so the plugin's counter moves while the agent works.
     const sofar: Usage = { input_tokens: 0, output_tokens: 0, reasoning_tokens: 0, cost: 0 };
     for await (const chunk of stream.fullStream) {
@@ -155,7 +177,7 @@ export const runAllay = async (context: RunContext, deps: AllayDeps, options: Ru
           }
           break;
         case "step-finish": {
-          cost += costOf((payload.metadata as { providerMetadata?: unknown } | undefined)?.providerMetadata);
+          spend(costOf((payload.metadata as { providerMetadata?: unknown } | undefined)?.providerMetadata));
           const step = (payload.output as { usage?: { inputTokens?: number; outputTokens?: number; reasoningTokens?: number } } | undefined)?.usage;
           sofar.input_tokens += step?.inputTokens ?? 0;
           sofar.output_tokens += step?.outputTokens ?? 0;
@@ -203,10 +225,10 @@ export const runAllay = async (context: RunContext, deps: AllayDeps, options: Ru
     emit({ event: "done", data: { answer: result.answer, duration_ms: result.durationMs } });
     logger.info(`Run ${runId} (${context.mode}/${context.platform}) done in ${result.durationMs} ms, ${usage.output_tokens} tokens`);
     // After done: the player has the answer, and the summary can take its time.
-    void compact(context, deps);
+    void compact(context, deps, options.spend);
     return result;
   } catch (error) {
-    const failure = classify(error, signal);
+    const failure = classify(error, signal, context.provider);
     logger.warn(`Run ${runId} failed: ${failure.code} ${failure.message}`);
     emit({ event: "error", data: { code: failure.code, message: failure.message } });
     throw failure;

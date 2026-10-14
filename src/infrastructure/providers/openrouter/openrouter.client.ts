@@ -1,27 +1,73 @@
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { LanguageModelV4 } from "@ai-sdk/provider";
 import { openrouterEnv } from "./openrouter.env";
 
-export type ModelFactory = (options: { token?: string; platform: string; search?: boolean }) => LanguageModelV4;
+/** A server's own key and models (BYOK), used for one run and never stored. */
+export interface ByokProvider {
+  baseURL: string;
+  apiKey: string;
+  /** Empty means the backend's own model, which only OpenRouter has. */
+  model?: string;
+  /** Empty means no web search for this run. */
+  searchModel?: string;
+}
 
-/** OpenRouter models: the player's own key when they sent one, the server's otherwise. */
-export const openrouterModels: ModelFactory = ({ token, platform, search }) => {
+/** Without a provider, the run goes on the backend's own key and models: a subscription, or a self-hosted backend. */
+export type ModelFactory = (options: { provider?: ByokProvider; platform: string; search?: boolean }) => LanguageModelV4;
+
+export const OPENROUTER_URL = "https://openrouter.ai/api/v1";
+
+export const isOpenRouter = (baseURL: string) => {
+  try {
+    return new URL(baseURL).hostname === "openrouter.ai";
+  } catch {
+    return false;
+  }
+};
+
+/** The v1 header X-OpenRouter-Token: BYOK on OpenRouter with the backend's models, search included. */
+export const openrouterToken = (token: string): ByokProvider => {
   const env = openrouterEnv();
-  const apiKey = token || env.apiKey;
-  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set");
-  const provider = createOpenRouter({
-    apiKey,
-    baseURL: env.baseURL,
-    headers: { "HTTP-Referer": env.apiUrl, "X-Title": `${env.apiName}/${platform}` },
-  });
+  return { baseURL: OPENROUTER_URL, apiKey: token, model: env.model, searchModel: env.searchModel };
+};
+
+const headers = (platform: string) => {
+  const env = openrouterEnv();
+  return { "HTTP-Referer": env.apiUrl, "X-Title": `${env.apiName}/${platform}` };
+};
+
+/** OpenRouter's own client for OpenRouter, a plain OpenAI-compatible one for any other API. */
+const byokModel = (provider: ByokProvider, platform: string, search: boolean): LanguageModelV4 => {
+  const modelId = (search ? provider.searchModel : provider.model) || openrouterEnv().model;
+  if (isOpenRouter(provider.baseURL)) {
+    const client = createOpenRouter({ apiKey: provider.apiKey, baseURL: provider.baseURL, headers: headers(platform) });
+    return client.chat(modelId, { usage: { include: true } });
+  }
+  // Other APIs reject OpenRouter's extra fields, so they get the standard request only.
+  return createOpenAICompatible({ name: "byok", baseURL: provider.baseURL, apiKey: provider.apiKey, includeUsage: true })(modelId);
+};
+
+/** The models for a run: the server's own key when it brought one, the backend's otherwise. */
+export const openrouterModels: ModelFactory = ({ provider, platform, search }) => {
+  if (provider) return byokModel(provider, platform, !!search);
+  const env = openrouterEnv();
+  if (!env.apiKey) throw new Error("OPENROUTER_API_KEY is not set");
+  const client = createOpenRouter({ apiKey: env.apiKey, baseURL: env.baseURL, headers: headers(platform) });
   if (search) {
-    return provider.chat(env.searchModel, {
+    return client.chat(env.searchModel, {
       usage: { include: true },
       extraBody: { web_search_options: { search_context_size: env.searchContext } },
     });
   }
-  return provider.chat(env.model, {
+  return client.chat(env.model, {
     usage: { include: true },
     ...(env.reasoningEffort ? { reasoning: { effort: env.reasoningEffort } } : {}),
   });
+};
+
+/** What OpenRouter charged for a generation, from the metadata it returns; other APIs report nothing. */
+export const costOf = (metadata: unknown): number => {
+  const cost = (metadata as { openrouter?: { usage?: { cost?: unknown } } } | undefined)?.openrouter?.usage?.cost;
+  return typeof cost === "number" ? cost : 0;
 };

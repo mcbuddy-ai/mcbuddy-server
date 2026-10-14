@@ -5,6 +5,9 @@ import { ToolBridge } from "../src/features/chat/chat.bridge";
 import { memoryHistory } from "../src/infrastructure/history/history";
 import { memoryMemories } from "../src/infrastructure/memory/memory";
 import type { ModelFactory } from "../src/infrastructure/providers/openrouter/openrouter.client";
+import { type Billing, newLimits } from "../src/features/billing/billing";
+import type { Net } from "../src/features/billing/byok";
+import { memoryLicenses } from "../src/infrastructure/billing/licenses";
 
 const usage = {
   inputTokens: { total: 12, noCache: 12, cacheRead: 0, cacheWrite: 0 },
@@ -37,14 +40,16 @@ export const toolCall = (toolName: string, input: object, id = `call-${toolName}
   input: JSON.stringify(input),
 });
 
-/** A model that plays back one scripted stream per call, and records what it was sent. */
+/** A model that plays back one scripted stream per call, and records what it was sent and which tools it was offered. */
 export const scripted = (steps: LanguageModelV4StreamPart[][]) => {
   const prompts: unknown[] = [];
+  const offered: string[][] = [];
   let index = 0;
   const model = new MockLanguageModelV4({
     modelId: "mock-model",
     doStream: async (options) => {
       prompts.push(options.prompt);
+      offered.push((options.tools ?? []).map((tool) => tool.name));
       const parts = steps[Math.min(index++, steps.length - 1)];
       return { stream: convertArrayToReadableStream(parts) };
     },
@@ -60,23 +65,52 @@ export const scripted = (steps: LanguageModelV4StreamPart[][]) => {
         ],
         finishReason: { unified: "stop", raw: "stop" },
         usage,
+        // What OpenRouter charges for a web search or a summary.
+        providerMetadata: { openrouter: { usage: { cost: 0.002 } } },
         warnings: [],
       };
     },
   });
-  return { model, prompts };
+  return { model, prompts, offered };
 };
+
+/** A network where every provider accepts every key and every host is public, unless a test says otherwise. */
+export const fakeNet = (routes: Record<string, (init?: RequestInit) => Response> = {}): Net & { calls: string[] } => {
+  const calls: string[] = [];
+  return {
+    calls,
+    fetch: async (url, init) => {
+      calls.push(url);
+      const route = Object.entries(routes).find(([prefix]) => url.startsWith(prefix));
+      return route ? route[1](init) : Response.json({ data: [] });
+    },
+    resolve: async (host) => (host.endsWith(".internal") ? ["10.0.0.5"] : ["93.184.216.34"]),
+  };
+};
+
+/** Billing as a self-hosted backend has it, or on with an in-memory store and a bot named allay_test_bot. */
+export const testBilling = (options: { enabled?: boolean; net?: Net; now?: () => Date } = {}): Billing => ({
+  enabled: options.enabled ?? false,
+  licenses: memoryLicenses(),
+  net: options.net ?? fakeNet(),
+  bot: { username: "allay_test_bot", admins: [42] },
+  limits: newLimits(),
+  now: options.now ?? (() => new Date()),
+});
 
 export const testDeps = (
   chat: LanguageModelV4,
-  options: { search?: LanguageModelV4; toolTimeoutMs?: number } = {},
-): AllayDeps & { searchCalls: number } => {
+  options: { search?: LanguageModelV4; toolTimeoutMs?: number; billing?: Billing } = {},
+): AllayDeps & { searchCalls: number; lastProvider?: unknown } => {
   const deps = {
     searchCalls: 0,
+    lastProvider: undefined as unknown,
     history: memoryHistory(),
     memories: memoryMemories(),
     bridge: new ToolBridge(options.toolTimeoutMs ?? 2_000),
-    models: (({ search }) => {
+    billing: options.billing ?? testBilling(),
+    models: (({ search, provider }) => {
+      deps.lastProvider = provider;
       if (search) {
         deps.searchCalls++;
         return options.search ?? chat;

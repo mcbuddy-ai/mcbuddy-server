@@ -13,4 +13,17 @@ export const readJson = async (req: Request): Promise<{ ok: true; body: unknown 
 
 /** v2 error shape; v1 handlers keep their own. */
 export const jsonError = (error: ApiError): Response =>
-  Response.json({ error: { code: error.code, message: error.message } }, { status: error.statusCode ?? 500 });
+  Response.json(
+    {
+      error: {
+        code: error.code,
+        message: error.message,
+        ...(error.resets_at ? { resets_at: error.resets_at } : {}),
+        ...(error.retry_after ? { retry_after: error.retry_after } : {}),
+      },
+    },
+    {
+      status: error.statusCode ?? 500,
+      headers: error.retry_after ? { "Retry-After": String(error.retry_after) } : undefined,
+    },
+  );

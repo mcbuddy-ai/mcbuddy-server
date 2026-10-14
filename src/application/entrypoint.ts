@@ -2,7 +2,9 @@ import { redis, serve } from "bun";
 import { handleAsk } from "../features/ask/ask.controller";
 import { handleAskX } from "../features/askx/askx.controller";
 import { handleChat, handleToolResult } from "../features/chat/chat.controller";
+import { handleLicense } from "../features/billing/license.controller";
 import { handleHealth } from "../features/health/health.controller";
+import { handleTelegram, startTelegram } from "../features/telegram/telegram.controller";
 import { handleMemories, handleMemory, handleSession } from "../features/users/users.controller";
 import { logger } from "../shared/logging/logger";
 import { connect as mongoConnect, disconnect as mongoDisconnect } from "../infrastructure/database/mongodb.client";
@@ -19,12 +21,16 @@ const server = serve({
   hostname: "0.0.0.0",
   routes: routes(productionDeps, {
     handleAsk, handleAskX, handleChat, handleToolResult, handleHealth, handleSession, handleMemories, handleMemory,
+    handleLicense, handleTelegram,
   }),
   error: (error: Error) => {
     logger.error("Server error:", error);
     return Response.json({ error: "Internal server error" }, { status: 500 });
   },
 });
+
+logger.info(productionDeps.billing.enabled ? "Billing is on: servers pay with a subscription or bring their own key" : "Billing is off (SELFHOSTED): everyone runs on this backend's key");
+await startTelegram(productionDeps.billing).catch((error) => logger.error(`The Telegram bot didn't start: ${String(error)}`));
 
 const shutdown = (signal: string) => async () => {
   logger.info(`Graceful shutdown: received ${signal}, closing connections...`);

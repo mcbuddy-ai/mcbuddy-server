@@ -1,3 +1,5 @@
+import type { ByokProvider } from "../infrastructure/providers/openrouter/openrouter.client";
+
 export type Mode = "ask" | "askx";
 export type Platform = "minecraft" | "telegram";
 /** Who sees the answer: only the asker, or every player online (`/askall`). */
@@ -31,8 +33,8 @@ export interface RunContext {
   server?: ServerInfo;
   /** Client tools the plugin offers for this run; empty for v1 requests. */
   tools: string[];
-  /** A player-supplied OpenRouter key; falls back to the server's key. */
-  token?: string;
+  /** The server's own key and models (BYOK); without it the run uses the backend's. */
+  provider?: ByokProvider;
 }
 
 export interface Usage {

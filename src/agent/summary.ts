@@ -1,6 +1,7 @@
 import type { LanguageModelV4 } from "@ai-sdk/provider";
 import { generateText } from "ai";
 import { type HistoryMessage, MAX_SUMMARY } from "../infrastructure/history/history";
+import { costOf } from "../infrastructure/providers/openrouter/openrouter.client";
 
 const INSTRUCTIONS =
   "You keep the running summary of a chat between a Minecraft player and Allay, their AI helper, " +
@@ -12,7 +13,7 @@ const INSTRUCTIONS =
 
 /** Folds messages that leave the verbatim window into the session summary. */
 export const summarizeWith =
-  (model: LanguageModelV4) =>
+  (model: LanguageModelV4, spend?: (usd: number) => void) =>
   async (summary: string | undefined, older: HistoryMessage[]): Promise<string> => {
     const transcript = older.map((m) => `${m.role === "user" ? "Player" : "Allay"}: ${m.content}`).join("\n\n");
     const result = await generateText({
@@ -21,5 +22,6 @@ export const summarizeWith =
       prompt: `Previous summary:\n${summary?.trim() || "(none)"}\n\nOlder messages:\n${transcript}`,
       maxRetries: 1,
     });
+    spend?.(costOf(result.providerMetadata));
     return result.text;
   };

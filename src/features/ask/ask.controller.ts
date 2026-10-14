@@ -1,4 +1,6 @@
+import type { Server } from "bun";
 import { type AllayDeps, runAllay } from "../../agent/allay";
+import { admit } from "../billing/gate";
 import { silent } from "../chat/chat.events";
 import { readJson } from "../../shared/lib/http";
 import { logger } from "../../shared/logging/logger";
@@ -19,7 +21,7 @@ const error = (e: ApiError): Response => {
 };
 
 /** POST /api/ask, v1: the Telegram bot and older plugins. Same agent, no game tools, one JSON answer. */
-export const handleAsk = (deps: AllayDeps) => async (req: Request): Promise<Response> => {
+export const handleAsk = (deps: AllayDeps) => async (req: Request, server?: Server): Promise<Response> => {
   if (req.method !== "POST") return error(apierror(API_ERRORS.METHOD_NOT_SUPPORTED));
   const json = await readJson(req);
   if (!json.ok) return error(json.error);
@@ -33,6 +35,9 @@ export const handleAsk = (deps: AllayDeps) => async (req: Request): Promise<Resp
 
   const platform = typeof body.platform === "string" ? body.platform : "unknown";
   const userId = typeof body.user_id === "string" && body.user_id ? body.user_id : "anonymous";
+  const admitted = await admit(deps.billing, req.headers, undefined, server?.requestIP(req)?.address ?? userId);
+  if (!admitted.ok) return error(admitted.error.toApiError());
+  const { admission } = admitted;
   try {
     const result = await runAllay(
       {
@@ -41,10 +46,10 @@ export const handleAsk = (deps: AllayDeps) => async (req: Request): Promise<Resp
         userId,
         message: question,
         tools: [],
-        token: req.headers.get("X-OpenRouter-Token") || undefined,
+        provider: admission.provider,
       },
       deps,
-      { runId: crypto.randomUUID(), emit: silent, signal: req.signal },
+      { runId: crypto.randomUUID(), emit: silent, signal: req.signal, spend: admission.spend },
     );
     return Response.json({
       answer: result.answer,
@@ -55,5 +60,7 @@ export const handleAsk = (deps: AllayDeps) => async (req: Request): Promise<Resp
     });
   } catch (e) {
     return error(e instanceof ApiFailure ? e.toApiError() : apierror(API_ERRORS.AI_REQUEST_FAILED, String(e)));
+  } finally {
+    admission.release();
   }
 };
