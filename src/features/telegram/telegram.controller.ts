@@ -4,6 +4,7 @@ import { logger } from "../../shared/logging/logger";
 import { type Billing, sha256 } from "../billing/billing";
 import { handleUpdate } from "./telegram.bot";
 import { type TelegramApi, type Update, telegramApi } from "./telegram.client";
+import { LANGUAGE_CODES, textsOf } from "./telegram.texts";
 
 export const WEBHOOK_PATH = "/api/telegram/webhook";
 
@@ -30,6 +31,23 @@ export const handleTelegram = (deps: AllayDeps) => async (req: Request): Promise
     }
   }
   return Response.json({ ok: true });
+};
+
+/** The bot's profile and commands in every language it speaks; English is also the default for the rest. */
+const describe = async (api: TelegramApi) => {
+  for (const code of [undefined, ...LANGUAGE_CODES]) {
+    const t = textsOf(code ?? "en");
+    const language = code ? { language_code: code } : {};
+    await api.call("setMyDescription", { description: t.about, ...language });
+    await api.call("setMyShortDescription", { short_description: t.short_about, ...language });
+    await api.call("setMyCommands", {
+      commands: [
+        { command: "status", description: t.command_status },
+        { command: "start", description: t.command_start },
+      ],
+      ...language,
+    });
+  }
 };
 
 /** Long polling for local runs, where Telegram can't reach a webhook. */
@@ -64,12 +82,7 @@ export const startTelegram = async (billing: Billing) => {
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET || sha256(`allay-webhook:${token}`);
   const me = await api.call<{ username: string }>("getMe");
   Object.assign(billing.bot, { api, secret, username: me.username });
-  await api.call("setMyCommands", {
-    commands: [
-      { command: "status", description: "Your servers and their limits" },
-      { command: "start", description: "How to link a server" },
-    ],
-  });
+  await describe(api);
   if (process.env.TELEGRAM_POLLING === "1") {
     await api.call("deleteWebhook");
     logger.info(`Telegram bot @${me.username} polls for updates`);

@@ -40,7 +40,7 @@ const byokOf = (headers: Headers, block?: ProviderBlock): ByokProvider | undefin
 
 /**
  * Decides who pays before a run starts. A server's own key wins; without one, a backend with billing on
- * wants a license with money left, and a self-hosted one runs everyone on its own key, as before 4.1.
+ * wants a license with money left, and a self-hosted one runs everyone on its own key, as before 5.0.
  * `serverKey` names the server for limits: its `server.id`, or the client address.
  */
 export const admit = async (

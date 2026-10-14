@@ -6,7 +6,7 @@ The plugin opens one streaming request per question. The backend agent (Mastra) 
 
 `POST /api/v2/chat`
 
-Headers: `Content-Type: application/json`, `Accept: text/event-stream`, `X-Plugin-Version`, and who pays for the model (since 4.1, see “Providers and billing”): `Authorization: Bearer <license>` for a subscription, or `X-Provider-Key` with a `provider` block for the server's own key. The v1 header `X-OpenRouter-Token` still works as such a key with the default models.
+Headers: `Content-Type: application/json`, `Accept: text/event-stream`, `X-Plugin-Version`, and who pays for the model (since 5.0, see “Providers and billing”): `Authorization: Bearer <license>` for a subscription, or `X-Provider-Key` with a `provider` block for the server's own key. The v1 header `X-OpenRouter-Token` still works as such a key with the default models.
 
 ```json
 {
@@ -166,7 +166,7 @@ Endpoints for the plugin's `/allay new`, `/allay memory`, and `/allay forget`:
 
 ## Providers and billing
 
-Since 4.1. A server pays for the model one of two ways, and the plugin picks with `provider.mode` in its config.
+Since 5.0. A server pays for the model one of two ways, and the plugin picks with `provider.mode` in its config.
 
 ### Bring your own key (BYOK)
 

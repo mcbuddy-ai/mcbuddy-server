@@ -1,6 +1,11 @@
 import type { PlanId } from "../billing/plans";
 
 type Texts = {
+  /** The bot's profile: what an empty chat shows (≤ 512), the short line in its profile and in shares (≤ 120). */
+  about: string;
+  short_about: string;
+  command_status: string;
+  command_start: string;
   welcome: string;
   claimed: string;
   claim_failed: string;
@@ -32,6 +37,11 @@ type Texts = {
 };
 
 const en: Texts = {
+  about:
+    "Allay is an AI helper for Minecraft servers: players ask in chat, and it answers with what it sees in the game.\n\nI take payments for it in Telegram Stars. Run /allay link on your server as an operator, open the link it shows, and pick a plan: a week, a month that renews by itself, or a year.",
+  short_about: "Payments for Allay, the AI helper for Minecraft servers, in Telegram Stars.",
+  command_status: "Your servers, their limits, and payment",
+  command_start: "How to link a server",
   welcome:
     "Hi! I take payments for Allay, the AI helper for Minecraft servers.\n\nTo link a server, run /allay link on it as an operator and open the link it shows you.",
   claimed: "Server {server} is linked to your Telegram account.",
@@ -72,6 +82,11 @@ const en: Texts = {
 };
 
 const ru: Texts = {
+  about:
+    "Allay — ИИ-помощник для серверов Minecraft: игроки спрашивают в чате, а он отвечает, видя, что происходит в игре.\n\nЯ принимаю оплату за него звёздами Telegram. Выполните /allay link на своём сервере от имени оператора, откройте ссылку и выберите тариф: неделя, месяц с автопродлением или год.",
+  short_about: "Оплата Allay, ИИ-помощника для серверов Minecraft, звёздами Telegram.",
+  command_status: "Ваши серверы, их лимиты и оплата",
+  command_start: "Как привязать сервер",
   welcome:
     "Привет! Я принимаю оплату за Allay — ИИ-помощника для серверов Minecraft.\n\nЧтобы привязать сервер, выполните на нём /allay link от имени оператора и откройте ссылку, которую он покажет.",
   claimed: "Сервер {server} привязан к вашему аккаунту Telegram.",
@@ -112,6 +127,11 @@ const ru: Texts = {
 };
 
 const es: Texts = {
+  about:
+    "Allay es un asistente de IA para servidores de Minecraft: los jugadores preguntan en el chat y responde con lo que ve en el juego.\n\nAquí se paga en Telegram Stars. Ejecuta /allay link en tu servidor como operador, abre el enlace y elige un plan: una semana, un mes que se renueva solo o un año.",
+  short_about: "Pagos de Allay, el asistente de IA para servidores de Minecraft, en Telegram Stars.",
+  command_status: "Tus servidores, sus límites y el pago",
+  command_start: "Cómo vincular un servidor",
   welcome:
     "¡Hola! Recibo los pagos de Allay, el asistente de IA para servidores de Minecraft.\n\nPara vincular un servidor, ejecuta /allay link en él como operador y abre el enlace que te muestre.",
   claimed: "El servidor {server} está vinculado a tu cuenta de Telegram.",
@@ -152,6 +172,11 @@ const es: Texts = {
 };
 
 const pt: Texts = {
+  about:
+    "Allay é um assistente de IA para servidores de Minecraft: os jogadores perguntam no chat, e ele responde com o que vê no jogo.\n\nAqui você paga com Telegram Stars. Execute /allay link no seu servidor como operador, abra o link e escolha um plano: uma semana, um mês que renova sozinho ou um ano.",
+  short_about: "Pagamentos do Allay, o assistente de IA para servidores de Minecraft, em Telegram Stars.",
+  command_status: "Seus servidores, os limites e o pagamento",
+  command_start: "Como vincular um servidor",
   welcome:
     "Olá! Eu recebo os pagamentos do Allay, o assistente de IA para servidores de Minecraft.\n\nPara vincular um servidor, execute /allay link nele como operador e abra o link que ele mostrar.",
   claimed: "O servidor {server} está vinculado à sua conta do Telegram.",
@@ -192,6 +217,11 @@ const pt: Texts = {
 };
 
 const de: Texts = {
+  about:
+    "Allay ist ein KI-Helfer für Minecraft-Server: Spieler fragen im Chat, und er antwortet mit dem, was er im Spiel sieht.\n\nHier bezahlst du ihn mit Telegram Stars. Führ /allay link als Operator auf deinem Server aus, öffne den Link und wähl einen Tarif: eine Woche, einen Monat, der sich selbst verlängert, oder ein Jahr.",
+  short_about: "Zahlungen für Allay, den KI-Helfer für Minecraft-Server, in Telegram Stars.",
+  command_status: "Deine Server, ihre Limits und Bezahlen",
+  command_start: "Wie du einen Server verknüpfst",
   welcome:
     "Hi! Ich nehme Zahlungen für Allay an, den KI-Helfer für Minecraft-Server.\n\nUm einen Server zu verknüpfen, führ dort als Operator /allay link aus und öffne den Link, den er dir zeigt.",
   claimed: "Server {server} ist mit deinem Telegram-Konto verknüpft.",
@@ -232,6 +262,8 @@ const de: Texts = {
 };
 
 const LANGUAGES: Record<string, Texts> = { en, ru, es, pt, de };
+
+export const LANGUAGE_CODES = Object.keys(LANGUAGES);
 
 export const PLAN_NAMES: Record<string, Record<PlanId, string>> = {
   en: { week: "Week", month: "Month", year: "Year" },

@@ -2,9 +2,9 @@
 
 The “Release” workflow takes the notes for a version from its section here, unless you type them into its `changelog` field.
 
-## 4.1.0
+## 5.0.0
 
-For Allay 4.1. A server pays for the model with its own key or with a subscription in Telegram Stars. **A backend of your own needs `SELFHOSTED=1`:** without it, billing is on, and requests without a license or a key get `LICENSE_REQUIRED`.
+For Allay 5.0. A server pays for the model with its own key or with a subscription in Telegram Stars. **A backend of your own needs `SELFHOSTED=1`:** without it, billing is on, and requests without a license or a key get `LICENSE_REQUIRED`.
 
 - 🔑 **Bring your own key.** `X-Provider-Key` and a `provider` block (`base_url`, `model`, `search_model`) run the request on the server's own OpenRouter or any OpenAI-compatible API. The key lives for one run: never stored, never logged, blanked out of error messages. Before the run the backend checks the key and the model and answers `PROVIDER_AUTH_FAILED`, `MODEL_NOT_FOUND`, or `MODEL_NO_TOOLS`. Without a search model there's no `search_web`. With billing on, BYOK is free, limited to 20 questions a minute, 2000 a day, and 4 at once per server, and its base URL must be public `https://`.
 - ⭐ **Subscriptions.** `POST /api/v2/license` makes a license and a one-time `t.me` link; `GET` answers its status. The backend serves its own Telegram bot through a webhook: `/start <code>` links the server, and the admin pays for a week (150 ⭐), a month (500 ⭐, a Stars subscription that renews), or a year (10 000 ⭐). Each plan is a budget in dollars of real model costs, counting web search and session summaries; a year refills monthly. Hosted requests carry `Authorization: Bearer <license>` and get `SUBSCRIPTION_INACTIVE` or `QUOTA_EXCEEDED` (with `resets_at`) when they can't run. `/status` in the bot shows every server and stops or resumes renewal; `/refund` is for the bot's admins.
@@ -29,7 +29,7 @@ For MCBuddy Spigot 3.0. Older plugins keep working: everything new is optional i
 - 🧩 **Plugins.** `get_server` describes the plugin list the plugin now sends, and the prompt calls it when a question may touch a plugin.
 - The prompts know chat mode: plain text, `!` for commands, `?` for everyone, `~` for the ordinary chat.
 
-## 2.4.1
+## 2.5.0
 
 - `/api/health` reports the release version instead of “1.0.0”; builds from master say `dev-<commit>`.
 

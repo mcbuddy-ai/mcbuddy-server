@@ -66,7 +66,7 @@ export const mongoLicenses: LicenseStore = {
     return LicenseModel.findOneAndUpdate(
       { claim_hash: claimHash, claim_expires: { $gt: now } },
       { $unset: { claim_hash: 1, claim_expires: 1 } },
-      { new: true },
+      { returnDocument: "after" },
     ).lean<LicenseRecord>();
   },
   async ofTelegram(userId) {
@@ -93,7 +93,7 @@ export const mongoLicenses: LicenseStore = {
     const payment = await PaymentModel.findOneAndUpdate(
       { charge_id: chargeId, refunded_at: { $exists: false } },
       { $set: { refunded_at: at } },
-      { new: true },
+      { returnDocument: "after" },
     ).lean<PaymentRecord>();
     if (payment) await GrantModel.deleteMany({ payment: chargeId });
     return payment;

@@ -18,7 +18,7 @@ export const chatRequestSchema = z.object({
   player: z.object({ name: z.string().min(1).max(32), uuid: text(36), op: z.boolean().optional() }).optional(),
   server: z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional(), software: text(64), version: text(64), plugin_version: text(64) }).optional(),
   tools: z.array(z.string().max(64)).max(256).default([]),
-  // Since 4.1: the server's own provider; its key comes in X-Provider-Key.
+  // Since 5.0: the server's own provider; its key comes in X-Provider-Key.
   provider: z.object({ base_url: text(512), model: text(200), search_model: text(200) }).optional(),
 });
 
