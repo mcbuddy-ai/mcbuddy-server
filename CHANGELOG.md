@@ -2,6 +2,10 @@
 
 The “Release” workflow takes the notes for a version from its section here, unless you type them into its `changelog` field.
 
+## 2.4.1
+
+- `/api/health` reports the release version instead of “1.0.0”; builds from master say `dev-<commit>`.
+
 ## 2.4.0
 
 Needs MCBuddy Spigot 2.4: the tool set changed, and older plugins lose the tools whose names changed.

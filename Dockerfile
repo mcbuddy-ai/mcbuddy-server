@@ -18,6 +18,8 @@ ENV NODE_ENV=production
 RUN bun run build
 
 FROM base AS release
+ARG APP_VERSION=dev
+ENV APP_VERSION=$APP_VERSION
 COPY --from=install /temp/prod/node_modules node_modules
 COPY --from=prerelease /usr/src/app/dist ./dist
 COPY --from=prerelease /usr/src/app/package.json .
