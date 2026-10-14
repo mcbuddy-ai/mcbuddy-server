@@ -72,7 +72,7 @@
 
 2. **Настройка домена:**
    ```bash
-   # Отредактируйте Caddyfile и замените mcbuddy.ru на ваш домен
+   # Отредактируйте Caddyfile и замените allay.chat на ваш домен
    nano configurations/caddy/Caddyfile
    ```
 

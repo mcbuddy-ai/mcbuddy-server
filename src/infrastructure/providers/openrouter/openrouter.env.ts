@@ -15,6 +15,6 @@ export const openrouterEnv = () => ({
     (searchOnly(process.env.OPENROUTER_API_MODEL) ? process.env.OPENROUTER_API_MODEL! : DEFAULT_SEARCH_MODEL),
   searchContext: process.env.OPENROUTER_API_CTX || "medium",
   reasoningEffort: process.env.OPENROUTER_REASONING_EFFORT as "low" | "medium" | "high" | undefined,
-  apiUrl: process.env.API_URL || "https://mcbuddy.ru",
+  apiUrl: process.env.API_URL || "https://allay.chat",
   apiName: process.env.API_NAME || "allay",
 });

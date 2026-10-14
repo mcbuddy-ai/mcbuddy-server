@@ -61,13 +61,13 @@ The lasting memory sits in MongoDB and never expires. It's up to 30 short facts:
 
 ```bash
 # v1: one JSON answer
-curl -X POST https://mcbuddy.ru/api/ask \
+curl -X POST https://allay.chat/api/ask \
   -H "Content-Type: application/json" \
   -d '{"question": "How do I craft a diamond pickaxe?", "platform": "telegram", "user_id": "42"}'
 # {"answer": "...", "status": "success", "timestamp": "...", "platform": "telegram", "user_id": "42"}
 
 # v2: a stream of events
-curl -N -X POST https://mcbuddy.ru/api/v2/chat \
+curl -N -X POST https://allay.chat/api/v2/chat \
   -H "Content-Type: application/json" -H "Accept: text/event-stream" \
   -d '{"mode": "ask", "message": "what should I do next?", "user_id": "5627dd98-...", "player": {"name": "Steve"}, "tools": ["get_inventory"]}'
 ```
@@ -113,7 +113,7 @@ Prompts live in [src/prompts](src/prompts) (`minecraft-ask.md`, `minecraft-askx.
 
 2. **Domain setup:**
    ```bash
-   # Edit Caddyfile and replace mcbuddy.ru with your domain
+   # Edit Caddyfile and replace allay.chat with your domain
    nano configurations/caddy/Caddyfile
    ```
 
