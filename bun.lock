@@ -3,7 +3,7 @@
   "configVersion": 0,
   "workspaces": {
     "": {
-      "name": "mcbuddy-server",
+      "name": "allay-server",
       "dependencies": {
         "@ai-sdk/provider": "^4.0.26",
         "@mastra/core": "^1.75.0",
