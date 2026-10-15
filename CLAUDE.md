@@ -45,6 +45,7 @@ The owner settled these on 2026-10-14; change them only when the owner asks.
 ## Deploying
 
 - Every push to `master` that touches the server tests it and builds `ghcr.io/allay-ai/server:sha-<commit>`. There is no `latest`, and nothing deploys by itself: servers pin a released version, as Moonlands does.
+- After a change that reaches what the project ships, add it to CHANGELOG.md in the same push: under the topmost “## X.Y.Z” section while that version isn't released (`gh release view vX.Y.Z` fails), or under a new section with the next version: patch for fixes, minor for features, major for breaking changes. A release then needs only the workflow, and the workflow runs only when the owner asks.
 - Releases are made by hand, only when the owner asks. Add a “## X.Y.Z” section to CHANGELOG.md, push, then run `gh workflow run release.yml -R allay-ai/server -f version=X.Y.Z` (its `changelog` field overrides the section; one of the two must be there). It tests, pushes `ghcr.io/allay-ai/server:X.Y.Z`, tags `vX.Y.Z`, and creates the GitHub release. Nothing in the repo holds the version: the image gets it as the `APP_VERSION` build argument, which `/api/health` reports (`dev` when nobody passed one). Never delete or re-tag a published release.
 - Production needs a tool-capable model in `OPENROUTER_API_MODEL` (not `perplexity/sonar*`; that one is `SEARCH_MODEL`).
 
@@ -57,6 +58,21 @@ The owner's server, Moonlands, runs its own instance of this backend, built from
 - `bun test` and `bun run typecheck` must pass; tests use a scripted model and never call the network.
 - Run locally from the Docker image (Bun 1.4.3); older Bun crashes on bson from Mongoose 9. Redis and MongoDB come from `docker-compose.dev.yaml` or throwaway containers.
 - For a real run, `OPENROUTER_API_KEY` lives in `~/.secrets/cloud.env`. Never print, log, or commit it.
+
+## Checking a change
+
+1. `bun test` and `bun run typecheck`.
+2. `docker build -t allay-server:check .`, since the image is what ships. Start it with Redis and MongoDB from `docker-compose.dev.yaml` and `GET /api/health`: it answers with the version.
+3. A change to the agent or its tools: one real question through the plugin's protocol, with `OPENROUTER_API_KEY` from `~/.secrets/cloud.env`. After a release reaches Moonlands, the owner asks `/ask` once.
+
+## Versions
+
+Where the versions live, for `/update-deps` (in `.claude/skills/`, the same file in every project of the family). This project has no Minecraft version to move.
+
+- Bun: the `FROM oven/bun:…-alpine` line of `Dockerfile` and `bun-version` in `.github/workflows/`, always the same. Never below 1.4.3: older Bun crashes on bson from Mongoose 9.
+- Packages: `package.json`, locked in `bun.lock`, which the image installs from with `--frozen-lockfile`. `bun outdated` lists what's behind.
+- Redis and MongoDB: the images in `docker-compose.yaml` and `docker-compose.dev.yaml`. MongoDB stays on its major unless the owner asks; Moonlands pins its own in `~/c/personal/minecraft/compose.yaml`.
+- GitHub Actions in `.github/workflows/`.
 
 ## Code
 
