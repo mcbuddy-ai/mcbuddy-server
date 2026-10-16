@@ -25,6 +25,16 @@ describe("v2 request validation", () => {
     expect(parsed.ok && parsed.context.tools).toEqual(tools);
   });
 
+  test("the player's dimension comes through, and an unknown one is dropped instead of refused", () => {
+    const dimension = (value: unknown) => {
+      const parsed = parseChatRequest({ ...base, player: { name: "Steve", dimension: value } });
+      return parsed.ok ? parsed.context.player?.dimension ?? "none" : "refused";
+    };
+    expect(dimension("the_nether")).toBe("the_nether");
+    expect(dimension("the_aether")).toBe("none");
+    expect(dimension(undefined)).toBe("none");
+  });
+
   test("questions are private unless the plugin says otherwise, and askx always is", () => {
     const visibility = (body: object) => {
       const parsed = parseChatRequest({ ...base, ...body });

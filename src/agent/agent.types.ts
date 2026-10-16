@@ -5,10 +5,15 @@ export type Platform = "minecraft" | "telegram";
 /** Who sees the answer: only the asker, or every player online (`/askall`). */
 export type Visibility = "private" | "public";
 
+export const DIMENSIONS = ["overworld", "the_nether", "the_end"] as const;
+export type Dimension = (typeof DIMENSIONS)[number];
+
 export interface PlayerInfo {
   name: string;
   uuid?: string;
   op?: boolean;
+  /** Where the player stands when they ask; the model needs it to place “here” and coordinates without a dimension. */
+  dimension?: Dimension;
 }
 
 export interface ServerInfo {

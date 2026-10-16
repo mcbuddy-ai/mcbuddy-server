@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { RunContext } from "../../agent/agent.types";
+import { DIMENSIONS, type RunContext } from "../../agent/agent.types";
 import type { ProviderBlock } from "../billing/gate";
 import { API_ERRORS, type ApiError, apierror } from "../../shared/types/errors";
 
@@ -15,7 +15,10 @@ export const chatRequestSchema = z.object({
   user_id: z.string().min(1).max(64).regex(/^[^:]+$/),
   locale: text(16),
   timezone: text(64),
-  player: z.object({ name: z.string().min(1).max(32), uuid: text(36), op: z.boolean().optional() }).optional(),
+  // dimension since 5.1: where the player stands when they ask. Unknown values are dropped, not refused, for future dimensions.
+  player: z
+    .object({ name: z.string().min(1).max(32), uuid: text(36), op: z.boolean().optional(), dimension: z.enum(DIMENSIONS).optional().catch(undefined) })
+    .optional(),
   server: z.object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).optional(), software: text(64), version: text(64), plugin_version: text(64) }).optional(),
   tools: z.array(z.string().max(64)).max(256).default([]),
   // Since 5.0: the server's own provider; its key comes in X-Provider-Key.

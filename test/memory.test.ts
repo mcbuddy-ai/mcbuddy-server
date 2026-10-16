@@ -45,6 +45,12 @@ describe("system prompt", () => {
     expect(systemPrompt({ ...context, platform: "telegram" })).toContain("Answer in the language the player wrote this message in");
   });
 
+  test("the model learns which dimension the player stands in", () => {
+    const player = { name: "Steve", op: false };
+    expect(systemPrompt({ ...context, player: { ...player, dimension: "the_nether" } })).toContain("- Player: Steve (operator: no, standing in the_nether)");
+    expect(systemPrompt({ ...context, player })).toContain("- Player: Steve (operator: no)");
+  });
+
   test("a public question says everyone reads the answer", () => {
     expect(systemPrompt({ ...context, visibility: "public" })).toContain("- Visibility: public");
     expect(systemPrompt(context)).not.toContain("- Visibility: public");

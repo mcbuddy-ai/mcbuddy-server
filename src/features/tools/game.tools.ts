@@ -150,14 +150,24 @@ const definitions = {
   },
   point_to: {
     description:
-      "Points the asking player's compass at a spot in their dimension and draws a short particle trail toward it that only they see. Use it when they want to find a place: their base, a death point, a structure. Pass the dimension the coordinates belong to: a spot in another dimension is refused instead of pointing the wrong way. Returns distance and direction.",
+      "Points the asking player's compass at a spot in their dimension and draws a particle trail toward it that only they see; it ends early once they arrive, and a new trail replaces the old one. Use it when they want to find a place: their base, a death point, a structure. Leave dimension out for a spot in the dimension they stand in; pass it only when the coordinates belong to another one, and that is refused instead of pointing the wrong way. Returns distance, direction, seconds, and style.",
     input: z.object({
       x: z.number().int(),
       y: z.number().int().optional().describe("Leave it out when unknown, as for structures"),
       z: z.number().int(),
       dimension: z.enum(["overworld", "the_nether", "the_end"]).optional(),
       label: z.string().max(32).optional().describe("A short name for the spot, like base"),
-      seconds: z.number().int().min(1).max(30).optional().describe("How long the trail shows, 1–30 s"),
+      seconds: z
+        .number()
+        .int()
+        .min(1)
+        .max(3600)
+        .optional()
+        .describe("How long the trail shows. The player's number when they name one; otherwise judge by distance: about 30 s close by, a few minutes for a long walk. The server caps it (600 s by default) and errors above"),
+      style: z
+        .enum(["sparkle", "flame", "soul", "glow", "magic", "spark", "cherry", "notes", "hearts", "snow", "totem", "happy"])
+        .optional()
+        .describe("The trail's particles: the one the player asks for, or one that fits the place (flame or soul in the Nether, magic in the End, cherry for a cherry grove, hearts for a friend's base); sparkle by default"),
     }),
   },
   ping_me: {
@@ -206,14 +216,17 @@ const definitions = {
   },
   add_note: {
     description:
-      "Writes a note in the asking player's notebook, tied to a place: by default where they stand (here), or the given x, y, z and dimension. Use it whenever the player asks to remember, note, or mark something about a place (“запомни, что у меня тут…”, “remember my base is here”): the plugin records the coordinates, the remember tool would lose them.",
+      "Writes a note in the asking player's notebook, tied to a place: by default where they stand (here), or the given x, y, z and dimension. Use it whenever the player asks to remember, note, or mark something about a place (“запомни, что у меня тут…”, “remember my base is here”): the plugin records the coordinates, the remember tool would lose them. Without dimension the note goes to the dimension the player stands in, which is right whenever they don't name another.",
     input: z.object({
       text: z.string().min(1).max(200),
       here: z.boolean().optional().describe("Pin to where the player stands; the default when no coordinates are given"),
       x: z.number().int().optional(),
       y: z.number().int().optional(),
       z: z.number().int().optional(),
-      dimension: z.enum(["overworld", "the_nether", "the_end"]).optional(),
+      dimension: z
+        .enum(["overworld", "the_nether", "the_end"])
+        .optional()
+        .describe("Only when the player names another dimension than the one they stand in («в аду», “in the End”) or the place exists only there (a bastion is always the_nether); otherwise leave it out"),
     }),
   },
   find_notes: {
@@ -231,19 +244,19 @@ const definitions = {
   },
   add_buttons: {
     description:
-      "Clickable buttons under your answer, at most 5. ask: the player clicks and asks question (label is one word in their language, like Да or Хочу). point: shows the way to x, y, z in dimension. note: saves text with x, y, z in their notebook. recipe: opens the crafting recipe window for item. enchants: opens the enchanting window for the item in hand. villagers: opens the window of villagers around, optionally only trades with item.",
+      "Clickable buttons under your answer, at most 5. ask: the player clicks and asks question (label is one word in their language, like Да or Хочу). point: shows the way to x, y, z in dimension. note: saves text with x, y, z in their notebook. copy: puts text, such as coordinates «-20 95 120», into the player's clipboard. recipe: opens the crafting recipe window for item. enchants: opens the enchanting window for the item in hand. villagers: opens the window of villagers around, optionally only trades with item.",
     input: z.object({
       buttons: z
         .array(
           z.object({
-            type: z.enum(["ask", "point", "note", "recipe", "enchants", "villagers"]),
+            type: z.enum(["ask", "point", "note", "copy", "recipe", "enchants", "villagers"]),
             label: z.string().min(1).max(24).describe("A word or two in the player's language"),
             question: z.string().max(200).optional().describe("ask: the full question the click asks"),
             x: z.number().int().optional(),
             y: z.number().int().optional(),
             z: z.number().int().optional(),
             dimension: z.enum(["overworld", "the_nether", "the_end"]).optional(),
-            text: z.string().max(200).optional().describe("note: what to write"),
+            text: z.string().max(200).optional().describe("note: what to write; copy: what to copy"),
             item: z.string().max(64).optional().describe("recipe or villagers: item id"),
           }),
         )

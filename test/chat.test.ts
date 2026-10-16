@@ -9,6 +9,7 @@ import { handleMemories, handleMemory, handleSession } from "../src/features/use
 import { handleLicense } from "../src/features/billing/license.controller";
 import { handleTelegram } from "../src/features/telegram/telegram.controller";
 import { finish, reasoning, readSse, scripted, testDeps, text, toolCall } from "./helpers";
+import { MAX_MEMORIES } from "../src/infrastructure/memory/memory";
 
 const handlers = { handleAsk, handleAskX, handleChat, handleToolResult, handleHealth, handleSession, handleMemories, handleMemory, handleLicense, handleTelegram };
 let server: Server | undefined;
@@ -350,6 +351,23 @@ describe("session and memory endpoints", () => {
     expect((await fetch(`${base}/api/v2/users/${encodeURIComponent("a:b")}/memories`)).status).toBe(400);
     expect((await fetch(`${base}/api/v2/users/${"x".repeat(65)}/session`, { method: "DELETE" })).status).toBe(400);
     expect((await fetch(`${base}/api/v2/users/player-1/session`)).status).toBe(405);
-    expect((await fetch(`${base}/api/v2/users/player-1/memories`, { method: "POST" })).status).toBe(405);
+    expect((await fetch(`${base}/api/v2/users/player-1/memories`, { method: "PUT" })).status).toBe(405);
+  });
+
+  test("a player saves a fact by hand, within the memory's limits", async () => {
+    const deps = testDeps(scripted([[finish()]]).model);
+    const base = start(deps);
+    const url = `${base}/api/v2/users/player-1/memories`;
+    const post = (body: unknown) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const saved = (await (await post({ text: "  wants a beacon  " })).json()) as any;
+    expect(saved.memory).toMatchObject({ id: expect.any(String), text: "wants a beacon" });
+    expect(((await (await fetch(url)).json()) as any).memories.map((m: any) => m.text)).toEqual(["wants a beacon"]);
+    expect((await post({ text: "x" })).status).toBe(400);
+    expect((await post({})).status).toBe(400);
+    expect((await fetch(url, { method: "POST", body: "not json" })).status).toBe(400);
+    for (let i = 1; i < MAX_MEMORIES; i++) await deps.memories.add("player-1", `fact ${i}`);
+    const full = await post({ text: "one too many" });
+    expect(full.status).toBe(409);
+    expect(((await full.json()) as any).error.code).toBe("MEMORY_FULL");
   });
 });

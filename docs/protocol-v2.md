@@ -17,7 +17,7 @@ Headers: `Content-Type: application/json`, `Accept: text/event-stream`, `X-Plugi
   "user_id": "5627dd98-e6be-3c21-b8a8-e92344183641",
   "locale": "ru_ru",
   "timezone": "Europe/Moscow",
-  "player": { "name": "Steve", "uuid": "5627dd98-…", "op": false },
+  "player": { "name": "Steve", "uuid": "5627dd98-…", "op": false, "dimension": "the_nether" },
   "server": { "id": "0f8c…", "software": "Paper", "version": "26.3", "plugin_version": "3.0.0" },
   "tools": ["get_player_status", "get_inventory", "get_surroundings", "look_at", "get_world", "get_statistics", "get_advancements", "get_recipes", "locate_structure", "get_server"]
 }
@@ -26,6 +26,8 @@ Headers: `Content-Type: application/json`, `Accept: text/event-stream`, `X-Plugi
 `timezone` is the asker's IANA time zone (optional, since 2.3). The backend puts their real date and time in front of each `ask` question, as `[Mon, 12 Oct 2026, 23:42 Europe/Moscow] question`, and keeps it in the session history; without it the time is UTC.
 
 `visibility` (since 3.0) is `private` by default. `public` marks a question from `/askall` or `?` in chat mode: the plugin shows the question and the answer to every player online, the prompt tells the model so, and the run goes without `write_book`. `askx` is always private. A public question reads and extends the server's shared thread instead of the asker's session (see “Conversation memory”); `server.id`, a random id the plugin keeps for its server, names that thread.
+
+`player.dimension` (optional, since 5.1) is the dimension the player stood in when they asked: `overworld`, `the_nether`, or `the_end`. The prompt tells the model, so a place named without a dimension lands where the player is; any other value is dropped.
 
 `tools` lists the client tools this plugin offers (server admins can switch some off). The backend registers only those for this run. The plugin lists operator tools only when the asking player is an operator, and the backend drops them anyway when `player.op` is false. An `askx` run gets only the tools that read the game: no actions (`point_to`, `reminders`, `goals`, notes, buttons, books) and no operator tools.
 
@@ -86,7 +88,7 @@ Answers: `200 { "accepted": true }`, `404` unknown or finished run or call, `409
 | `get_light_spawn_check` | `{ "radius"?: 1–16 }` default 8 | radius, dark_spots (solid floor, two free blocks, block light 0, within ±6 height), nearest [{x, y, z, distance, direction}] (10), rule |
 | `get_brewing_items` | – | inventory [item] for brewing, brewing_stands (up to 4 within 8 blocks) [{x, y, z, distance, direction, fuel_level, seconds_left?, ingredient?, fuel?, bottles}] |
 | `scan_farm` | `{ "radius"?: 1–16 }` default 8 | radius, crops {id: {total, ripe, max_age, by_age}}, farmland {hydrated, dry}, composter_levels?, hoppers?, spawners? {mob: count}, animals {type: count}, within ±4 height |
-| `point_to` | `{ "x", "z", "y"?, "dimension"?, "label"?, "seconds"?: 1–30 }` | Points the compass and draws a trail only the player sees (2 s by default). A `dimension` other than the player's is refused. Returns `{ distance, direction, compass }` |
+| `point_to` | `{ "x", "z", "y"?, "dimension"?, "label"?, "seconds"?: 1–3600, "style"? }` | Points the compass and draws a trail only the player sees. Since plugin 5.3: `seconds` up to `tools.point_to.max_seconds` (600 by default; older plugins allow 30 and refuse more), 30 by default; the trail ends when the player arrives, and a new one replaces the old. `style` is `sparkle` (default), `flame`, `soul`, `glow`, `magic`, `spark`, `cherry`, `notes`, `hearts`, `snow`, `totem`, or `happy`; older plugins ignore it. A `dimension` other than the player's is refused. Returns `{ distance, direction, seconds?, style?, compass }` |
 | `ping_me` | – | Note particles and a sound over the player that everyone nearby sees and hears; `{ pinged, y }` |
 | `sort_inventory` | – | Merges stacks and sorts slots 9–35 by id; `{ merged_stacks }` |
 | `reminders` | `{ "action"?: "add" \| "list" \| "cancel", "minutes"?: 1–120, "text"?: "≤ 100", "id"?, "all"? }` | add: `{ id, minutes, text }`, a chat line with a sound after the delay (10 pending per player by default, `tools.reminders.max_pending`; lost on a restart or when the player leaves). list (default): `{ reminders: [{id, text, minutes_left, due_at}] }`. cancel by `id` or `all`: `{ cancelled }` |
@@ -94,7 +96,7 @@ Answers: `200 { "accepted": true }`, `404` unknown or finished run or call, `409
 | `add_note` | `{ "text": "≤ 200", "here"?: true, "x"?, "y"?, "z"?, "dimension"? }` | A note kept on disk (200 per player by default, `tools.notes.max_per_player`). By default where the player stands; with `here: false`, the given `x`, `z` (and optional `y`, `dimension`), or no place at all. Returns `{ id, text, x?, y?, z?, dimension? }` |
 | `find_notes` | `{ "query"?, "near"?, "limit"?: 1–50 }` | matched, total, notes [{id, text, x?, y?, z?, dimension?, distance?, direction?, created_at}] |
 | `delete_note` | `{ "id": "k3f9" }` | `{ deleted }` |
-| `add_buttons` | `{ "buttons": [{ "type", "label", "question"?, "x"?, "y"?, "z"?, "dimension"?, "text"?, "item"? }] }` | Puts up to 5 buttons under the answer. `ask` asks `question` on click; `point` shows the way to x, y, z; `note` saves `text` with x, y, z; `recipe` opens the recipe window for `item`; `enchants` the enchanting window for the item in hand; `villagers` the villager window, optionally for `item`. Returns `{ added, total }` |
+| `add_buttons` | `{ "buttons": [{ "type", "label", "question"?, "x"?, "y"?, "z"?, "dimension"?, "text"?, "item"? }] }` | Puts up to 5 buttons under the answer. `ask` asks `question` on click; `point` shows the way to x, y, z; `note` saves `text` with x, y, z; `copy` (since plugin 5.3; older plugins refuse it) puts `text` into the clipboard; `recipe` opens the recipe window for `item`; `enchants` the enchanting window for the item in hand; `villagers` the villager window, optionally for `item`. Under a public answer (since plugin 5.3) every player online gets the buttons, and `ask` asks everyone. Returns `{ added, total }` |
 | `write_book` | `{ "title": "≤ 32", "text": "≤ 8000" }` | Writes the text into a book and adds buttons to open and take it under the answer; returns `{ pages }` |
 | `set_timezone` | `{ "zone": "Asia/Yekaterinburg" }` | Stores the player's IANA zone for later requests; returns `{ zone, local_time }` |
 | `get_allay_guide` | – | Since 4.0 (3.x calls it `get_buddy_guide`). How Allay works for this player here: plugin_version, commands [{usage, does}] they have permission for, chat_mode {prefixes {"!", "?", "~"}: what each does, only those this player may use}, settings {chat_mode, hints, timezone}, features [names of what the server has on: notes, goals, reminders, windows, books, buttons, compass, sorting, operator_tools], limits {notes, reminders, goals, public_cooldown_seconds} |
@@ -155,12 +157,13 @@ The backend keeps two things per `user_id`:
 - **The server's public thread** (since 3.0). Public questions with a `server.id` go to `public:<server.id>` instead of the asker's session, each question prefixed with the asker's name in brackets, so a follow-up from another player continues the talk. It folds like a session and lives 2 hours after the last question (`PUBLIC_CHAT_TTL_SECONDS`). Without `server.id` a public question uses the asker's session.
 - **Memories.** Lasting facts the model saves with `remember`, kept in MongoDB without expiry. They go into the system prompt with their ids.
 
-Endpoints for the plugin's `/allay new`, `/allay memory`, and `/allay forget`:
+Endpoints for the plugin's `/allay new`, `/allay memory [text]`, and `/allay forget`:
 
 | Request | Answer |
 |---|---|
 | `DELETE /api/v2/users/{user_id}/session` | `200 { "cleared": true }`; memories stay |
 | `GET /api/v2/users/{user_id}/memories` | `200 { "memories": [{ "id": "k3f9a", "text": "…", "created_at": "ISO-8601" }] }`, oldest first |
+| `POST /api/v2/users/{user_id}/memories` with `{ "text": "3–200 chars" }` | `200 { "memory": { "id", "text", "created_at" } }`; `409 MEMORY_FULL` at 30; `400` for other text. Since 5.1 |
 | `DELETE /api/v2/users/{user_id}/memories` | `200 { "deleted": 4 }`: all of them |
 | `DELETE /api/v2/users/{user_id}/memories/{id}` | `200 { "deleted": 1 }`, or `404` |
 
