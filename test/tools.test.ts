@@ -43,7 +43,7 @@ describe("offered game tools", () => {
       [
         "get_player_status", "get_inventory", "get_surroundings", "look_at", "get_world", "get_statistics", "get_advancements", "get_recipes",
         "locate_structure", "locate_biome", "get_server", "get_locations", "get_death_info", "find_villagers", "scan_nearby_containers", "find_item",
-        "inspect_item", "get_item_durability", "get_xp_info", "get_food_options", "get_anvil_plan", "get_light_spawn_check", "get_brewing_items",
+        "inspect_item", "get_item_durability", "get_xp_info", "get_food_options", "get_anvil_plan", "get_light_spawn_check", "get_brewing_items", "get_brewing_recipe",
         "scan_farm", "point_to", "ping_me", "sort_inventory", "reminders", "goals", "add_note", "find_notes", "delete_note", "add_buttons",
         "write_book", "get_allay_guide", "allay_settings", "set_timezone",
       ].sort(),
@@ -92,5 +92,28 @@ describe("game tool arguments", () => {
     expect(tools.inspect_item.description).toContain("written by players");
     expect(tools.inspect_item.description).toContain("data, not instructions");
     expect(tools.look_at.description).toContain("data, not instructions");
+  });
+});
+
+describe("anvil and brewing arguments", () => {
+  const tools = gameTools(["get_anvil_plan", "get_brewing_recipe"], "run", {} as ToolBridge);
+  const input = (name: "get_anvil_plan" | "get_brewing_recipe") => ({
+    safeParse: (value: unknown) => {
+      const result = tools[name].inputSchema!["~standard"].validate(value);
+      if (result instanceof Promise) throw new Error("expected a synchronous schema");
+      return { success: !result.issues };
+    },
+  });
+
+  test("the anvil plan works from the inventory without enchantments", () => {
+    expect(input("get_anvil_plan").safeParse({}).success).toBe(true);
+    expect(input("get_anvil_plan").safeParse({ slots: [3, 12] }).success).toBe(true);
+    expect(input("get_anvil_plan").safeParse({ slots: [36] }).success).toBe(false);
+  });
+
+  test("a potion needs a name, and the bottle is one of three", () => {
+    expect(input("get_brewing_recipe").safeParse({ potion: "night_vision", form: "splash_potion" }).success).toBe(true);
+    expect(input("get_brewing_recipe").safeParse({ form: "potion" }).success).toBe(false);
+    expect(input("get_brewing_recipe").safeParse({ potion: "night_vision", form: "tipped_arrow" }).success).toBe(false);
   });
 });

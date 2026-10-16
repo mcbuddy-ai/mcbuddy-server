@@ -39,7 +39,7 @@ The agent answers in the language of the question. The game locale only matters 
 
 The backend puts the player’s real date and time in front of each Minecraft question, for example `[Mon, 12 Oct 2026, 23:42 Europe/Moscow]`. The plugin sends the time zone. The time goes into the message, not the system prompt, so the provider’s prompt cache keeps working.
 
-Besides the text, the agent puts buttons under its answer (`add_buttons`): options for an ambiguous question, a next question, the way to coordinates, coordinates to copy, and the recipe, enchanting, and villager windows. When the player asks for detail, it writes the answer into a book (`write_book`), and it sets goals like “collect 16 diamonds” as a bar at the top of the screen (`goals`).
+Besides the text, the agent puts buttons under its answer (`add_buttons`): options for an ambiguous question, a next question, the way to coordinates, coordinates to copy, the brewing steps for a potion, the anvil plan for what the player has, and the recipe, enchanting, and villager windows. When the player asks for detail, it writes the answer into a book (`write_book`), and it sets goals like “collect 16 diamonds” as a bar at the top of the screen (`goals`).
 
 The agent also knows Allay itself. Asked “what can you do?” or “how do I turn off chat mode?”, it calls `get_allay_guide`: the plugin answers with the commands this player may use, chat mode's prefixes, their settings, and what this server has switched on. So the agent never names a command that isn't there. `allay_settings` turns chat mode and its tip on or off when the player asks in words. `get_server` lists the server's plugins with versions, so a question about graves or land claims gets an answer for the plugin that really runs.
 

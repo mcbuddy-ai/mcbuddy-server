@@ -128,9 +128,13 @@ const definitions = {
   },
   get_anvil_plan: {
     description:
-      "The cheapest order to put enchanted books on the item in the asking player's hand: each anvil step with its level cost, the total, and whether a step hits Too Expensive (40+). Counts the item's prior work penalty and checks conflicts.",
+      "The anvil order for the item in the asking player's hand. Without enchantments (plugin 5.3+): plans with what the player really has, the enchanted books and the enchanted items of the same kind in the inventory (or only the given slots), priced as the game does: equal levels go one up, only the right side's enchantments are paid for, conflicts cost a level. Returns found, pieces (where: hand, hotbar N, or inventory row R column C, with slot, enchantments, and repair_cost), steps (left, right, levels, gives), result, total_levels, too_expensive, unused. With enchantments: the cheapest order for ideal books of those levels. Each anvil step at 40+ levels is Too Expensive.",
     input: z.object({
-      enchantments: z.record(z.string().max(64), z.number().int().min(1).max(10)).describe("Enchantment id to level, such as { sharpness: 5, mending: 1 }"),
+      enchantments: z
+        .record(z.string().max(64), z.number().int().min(1).max(10))
+        .optional()
+        .describe("Only for books the player doesn't have yet: enchantment id to level, such as { sharpness: 5, mending: 1 }"),
+      slots: z.array(z.number().int().min(0).max(35)).max(8).optional().describe("Inventory slots (0–35, from get_inventory) to use; all fitting books and items when left out"),
     }),
   },
   get_light_spawn_check: {
@@ -142,6 +146,14 @@ const definitions = {
     description:
       "Brewing ingredients, potions, and bottles in the asking player's inventory, and brewing stands within 8 blocks with x, y, z, fuel, time left, ingredient, and bottles.",
     input: z.object({}),
+  },
+  get_brewing_recipe: {
+    description:
+      "How to brew a potion on this server, from the game's own recipes: every step from a water bottle (bottle, add, makes) and the fuel. Potions aren't in get_recipes. potion is the game's id or part of it: night_vision, long_night_vision, strong_healing, slow_falling.",
+    input: z.object({
+      potion: z.string().min(1).max(64),
+      form: z.enum(["potion", "splash_potion", "lingering_potion"]).optional().describe("The bottle; potion by default"),
+    }),
   },
   scan_farm: {
     description:
@@ -244,12 +256,12 @@ const definitions = {
   },
   add_buttons: {
     description:
-      "Clickable buttons under your answer, at most 5. ask: the player clicks and asks question (label is one word in their language, like Да or Хочу). point: shows the way to x, y, z in dimension. note: saves text with x, y, z in their notebook. copy: puts text, such as coordinates «-20 95 120», into the player's clipboard. recipe: opens the crafting recipe window for item. enchants: opens the enchanting window for the item in hand. villagers: opens the window of villagers around, optionally only trades with item.",
+      "Clickable buttons under your answer, at most 5. ask: the player clicks and asks question (label is one word in their language, like Да or Хочу). point: shows the way to x, y, z in dimension. note: saves text with x, y, z in their notebook. copy: puts text, such as coordinates «-20 95 120», into the player's clipboard. recipe: opens the recipe window for item, crafting or smelting. brewing: opens the brewing steps for potion in form. anvil: opens the anvil plan for the item in hand with what the player has (or only slots). enchants: opens the enchanting window for the item in hand, to plan books they don't have yet. villagers: opens the window of villagers around, optionally only trades with item.",
     input: z.object({
       buttons: z
         .array(
           z.object({
-            type: z.enum(["ask", "point", "note", "copy", "recipe", "enchants", "villagers"]),
+            type: z.enum(["ask", "point", "note", "copy", "recipe", "brewing", "anvil", "enchants", "villagers"]),
             label: z.string().min(1).max(24).describe("A word or two in the player's language"),
             question: z.string().max(200).optional().describe("ask: the full question the click asks"),
             x: z.number().int().optional(),
@@ -258,6 +270,9 @@ const definitions = {
             dimension: z.enum(["overworld", "the_nether", "the_end"]).optional(),
             text: z.string().max(200).optional().describe("note: what to write; copy: what to copy"),
             item: z.string().max(64).optional().describe("recipe or villagers: item id"),
+            potion: z.string().max(64).optional().describe("brewing: the potion's id"),
+            form: z.enum(["potion", "splash_potion", "lingering_potion"]).optional().describe("brewing: the bottle"),
+            slots: z.array(z.number().int().min(0).max(35)).max(8).optional().describe("anvil: inventory slots to use"),
           }),
         )
         .min(1)

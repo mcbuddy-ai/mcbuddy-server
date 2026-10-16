@@ -9,6 +9,9 @@ For Allay 5.3; older plugins keep working.
 - 🧭 **The agent knows which dimension the player is in.** The plugin now sends `player.dimension`, and the prompt places anything named without a dimension there. A Nether portal or a bastion a player asks to remember while standing in the Nether goes to the Nether, not to the overworld, and the agent never converts coordinates between dimensions unless asked.
 - ✨ **Longer trails in many looks.** `point_to` takes `seconds` up to an hour (the plugin caps it, 10 minutes by default) and a `style`: sparkle, flame, soul, glow, magic, spark, cherry, notes, hearts, snow, totem, or happy. The agent uses what the player asks for, or picks by the walk ahead and the place.
 - 🔘 **More buttons.** The agent offers a next question after most answers, a copy button next to every set of coordinates (`copy`, new), and buttons under public answers for everyone.
+- 🧪 **`get_brewing_recipe`** (plugin 5.3): every step to any potion from the game's own recipes, so “how do I brew night vision?” no longer looks in the crafting recipes and comes back empty. A `brewing` button opens the steps in a window.
+- ⚒️ **The anvil plans with what the player has.** `get_anvil_plan` without enchantments (plugin 5.3) takes the books and the second enchanted item from the inventory and prices every step as the game does; “how do I combine my two bows?” gets the order and the levels, and an `anvil` button opens the plan in a window.
+- 🔥 Smelting gets a recipe button too.
 - 🎨 **Coordinates and numbers stand out.** Coordinates always come as “X Y Z” in aqua, other numbers that matter in gold.
 - 📝 **`POST /api/v2/users/{user_id}/memories`** saves a fact by hand for `/allay memory <text>`; `409 MEMORY_FULL` when 30 are kept.
 
